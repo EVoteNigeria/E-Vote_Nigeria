@@ -27,13 +27,15 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from backend.database import get_db, init_db
+from backend.seed import seed_data
 from backend.security import (
     verify_password, get_password_hash, create_access_token,
     get_current_admin, require_roles, log_audit_event
 )
 
-# Initialize Database Schema if not already present
+# Initialize Database Schema & Seed Data if not present
 init_db()
+seed_data()
 
 app = FastAPI(
     title="Biometric Electronic Voting System API",

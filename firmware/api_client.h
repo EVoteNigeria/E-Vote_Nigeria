@@ -67,6 +67,7 @@ public:
     serializeJson(doc, requestBody);
 
     int httpCode = http.POST(requestBody);
+    Serial.printf("[Heartbeat] POST -> %d\n", httpCode);
     if (httpCode == 200) {
       String response = http.getString();
       StaticJsonDocument<512> respDoc;
@@ -78,6 +79,8 @@ public:
       }
       http.end();
       return true;
+    } else if (httpCode < 0) {
+      Serial.printf("[Heartbeat Error] %s\n", http.errorToString(httpCode).c_str());
     }
 
     http.end();
