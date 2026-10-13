@@ -9,8 +9,8 @@
 #define WIFI_SSID             "Your_WiFi_SSID"
 #define WIFI_PASSWORD         "Your_WiFi_Password"
 
-// Backend Server IP & Port (e.g. your local PC's IP running FastAPI)
-#define SERVER_HOST           "http://192.168.1.100:8000"
+// Backend Server IP & Port (Render Cloud Deployment)
+#define SERVER_HOST           "https://e-vote-nigeria.onrender.com"
 
 // REST Endpoints
 #define ENDPOINT_HEARTBEAT    "/api/v1/devices/" DEVICE_ID "/heartbeat"
