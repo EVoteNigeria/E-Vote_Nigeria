@@ -67,11 +67,13 @@ SemaphoreHandle_t networkMutex = NULL;
 
 // Background Network & Heartbeat Task (Runs on Core 0)
 void NetworkWorkerTask(void *pvParameters) {
+  Serial.println("[NetworkWorker] Background task started on Core 0");
   TickType_t xLastWakeTime = xTaskGetTickCount();
   const TickType_t xFrequency = pdMS_TO_TICKS(HEARTBEAT_INTERVAL_MS);
 
   for (;;) {
     if (!AppNetworkManager::isOnline()) {
+      Serial.println("[NetworkWorker] Wi-Fi offline, attempting reconnect...");
       AppNetworkManager::connectWiFi();
     }
 
@@ -81,6 +83,7 @@ void NetworkWorkerTask(void *pvParameters) {
         String cmdPayload = "";
         int slots = fpSensor.getTemplateCount();
 
+        Serial.printf("[NetworkWorker] Sending heartbeat (slots: %d)...\n", slots);
         bool ok = api.sendHeartbeat(slots, cmdType, cmdPayload);
         if (ok && cmdType == "ENROLL_FINGERPRINT") {
           // Parse remote enrollment command
@@ -158,7 +161,7 @@ void setup() {
   AppNetworkManager::connectWiFi();
 
   // Launch Background Network Task on Core 0
-  xTaskCreatePinnedToCore(
+  BaseType_t taskRes = xTaskCreatePinnedToCore(
     NetworkWorkerTask,
     "NetworkWorker",
     8192,
@@ -167,6 +170,11 @@ void setup() {
     &networkTaskHandle,
     0
   );
+  if (taskRes == pdPASS) {
+    Serial.println("[Setup] NetworkWorker task created on Core 0 successfully.");
+  } else {
+    Serial.println("[Setup Error] Failed to create NetworkWorker task!");
+  }
 }
 
 void loop() {
