@@ -164,7 +164,7 @@ void setup() {
   BaseType_t taskRes = xTaskCreatePinnedToCore(
     NetworkWorkerTask,
     "NetworkWorker",
-    8192,
+    16384, // 16KB stack required for mbedTLS TLS handshake
     NULL,
     1,
     &networkTaskHandle,

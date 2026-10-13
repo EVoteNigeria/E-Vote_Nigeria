@@ -24,32 +24,24 @@ struct BallotOption {
 
 class ApiClient {
 private:
-  WiFiClientSecure secureClient;
-  bool clientConfigured;
-
-  void setupClient() {
-    if (!clientConfigured) {
-      secureClient.setInsecure();
-      secureClient.setTimeout(12);
-      clientConfigured = true;
-    }
-  }
-
-  void beginRequest(HTTPClient &http, const String &url) {
+  void beginRequest(HTTPClient &http, WiFiClientSecure &client, const String &url) {
     if (url.startsWith("https://")) {
-      setupClient();
-      http.begin(secureClient, url);
+      client.setInsecure();
+      client.setTimeout(15);
+      http.setReuse(false);
+      http.setTimeout(15000);
+      http.begin(client, url);
     } else {
+      http.setReuse(false);
+      http.setTimeout(10000);
       http.begin(url);
     }
   }
 
 public:
-  ApiClient() : clientConfigured(false) {}
+  ApiClient() {}
 
-  void begin() {
-    setupClient();
-  }
+  void begin() {}
 
   bool isConnected() {
     return (WiFi.status() == WL_CONNECTED);
@@ -59,8 +51,9 @@ public:
   bool sendHeartbeat(int slotsUsed, String &outCmdType, String &outCmdPayload) {
     if (!isConnected()) return false;
 
+    WiFiClientSecure client;
     HTTPClient http;
-    beginRequest(http, String(SERVER_HOST) + ENDPOINT_HEARTBEAT);
+    beginRequest(http, client, String(SERVER_HOST) + ENDPOINT_HEARTBEAT);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("x-device-id", DEVICE_ID);
     http.addHeader("x-api-key", DEVICE_API_KEY);
@@ -106,9 +99,10 @@ public:
       return result;
     }
 
+    WiFiClientSecure client;
     HTTPClient http;
     String url = String(SERVER_HOST) + ENDPOINT_VOTER_LOOKUP + "?voter_id=" + voterId;
-    beginRequest(http, url);
+    beginRequest(http, client, url);
     http.addHeader("x-device-id", DEVICE_ID);
     http.addHeader("x-api-key", DEVICE_API_KEY);
 
@@ -137,8 +131,9 @@ public:
   int fetchBallotOptions(BallotOption* optionsArray, int maxOptions, String &electionIdOut) {
     if (!isConnected()) return 0;
 
+    WiFiClientSecure client;
     HTTPClient http;
-    beginRequest(http, String(SERVER_HOST) + ENDPOINT_BALLOT_OPTS);
+    beginRequest(http, client, String(SERVER_HOST) + ENDPOINT_BALLOT_OPTS);
     http.addHeader("x-device-id", DEVICE_ID);
     http.addHeader("x-api-key", DEVICE_API_KEY);
 
@@ -170,8 +165,9 @@ public:
   bool submitBallot(const String &electionId, const String &voterId, const String &optionId, int slotId) {
     if (!isConnected()) return false;
 
+    WiFiClientSecure client;
     HTTPClient http;
-    beginRequest(http, String(SERVER_HOST) + ENDPOINT_CAST_BALLOT);
+    beginRequest(http, client, String(SERVER_HOST) + ENDPOINT_CAST_BALLOT);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("x-device-id", DEVICE_ID);
     http.addHeader("x-api-key", DEVICE_API_KEY);
@@ -194,8 +190,9 @@ public:
   void reportEnrollmentResult(const String &cmdId, const String &voterId, int slotId, bool success, const String &errMsg) {
     if (!isConnected()) return;
 
+    WiFiClientSecure client;
     HTTPClient http;
-    beginRequest(http, String(SERVER_HOST) + ENDPOINT_ENROLL_RESULT);
+    beginRequest(http, client, String(SERVER_HOST) + ENDPOINT_ENROLL_RESULT);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("x-device-id", DEVICE_ID);
     http.addHeader("x-api-key", DEVICE_API_KEY);
