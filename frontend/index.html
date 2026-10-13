@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biometric E-Voting System | National Admin Dashboard</title>
+  <meta name="description" content="Secure Web-Based Admin Dashboard for ESP32 and AS608 Biometric Electronic Voting System.">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div id="login-view">
+    <div class="login-card">
+      <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 24px;">
+        <div class="brand-logo-icon">V</div>
+        <div>
+          <h2 style="font-size: 1.25rem; font-weight: 800; color: #fff;">E-VOTE NIGERIA</h2>
+          <div style="font-size: 0.76rem; color: var(--accent-cyan); font-weight: 600;">BIOMETRIC TERMINAL CONTROL</div>
+        </div>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 24px;">Sign in with your administrative credentials to access the election control center.</p>
+      
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label" for="login-username">Username</label>
+          <input type="text" id="login-username" class="form-input" placeholder="e.g. admin" required value="admin">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="login-password">Password</label>
+          <input type="password" id="login-password" class="form-input" placeholder="••••••••" required value="admin123">
+        </div>
+        <div id="login-error" style="display: none; color: #f87171; font-size: 0.82rem; margin-bottom: 16px;"></div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px;">Authenticate & Enter</button>
+      </form>
+      <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle); font-size: 0.78rem; color: var(--text-dim); text-align: center;">
+        Official Demonstration Platform &bull; Africa/Lagos Timezone
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN DASHBOARD APP -->
+  <div id="app-view" class="app-container" style="display: none;">
+    
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="sidebar">
+      <div class="brand-section">
+        <div class="brand-logo-icon">V</div>
+        <div>
+          <div class="brand-title">E-VOTE SYSTEM</div>
+          <div class="brand-sub">ADMIN CONTROL</div>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <a class="nav-item active" data-page="overview">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+          Overview Dashboard
+        </a>
+        <a class="nav-item" data-page="elections">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+          Election Management
+        </a>
+        <a class="nav-item" data-page="parties">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+          Political Parties & LCD
+        </a>
+        <a class="nav-item" data-page="voters">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+          Voter Registry
+        </a>
+        <a class="nav-item" data-page="enrollment">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004 11m0 0a8 8 0 008 8c.706 0 1.392-.093 2.046-.269"/></svg>
+          Fingerprint Enrollment
+        </a>
+        <a class="nav-item" data-page="terminals">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          Voting Terminals (ESP32)
+        </a>
+        <a class="nav-item" data-page="turnout">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
+          Turnout Monitoring
+        </a>
+        <a class="nav-item" data-page="results">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Election Results
+        </a>
+        <a class="nav-item" data-page="reports">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Reports & Exports
+        </a>
+        <a class="nav-item" data-page="audit">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Security & Audit Logs
+        </a>
+        <a class="nav-item" data-page="admins">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          Administrator Accounts
+        </a>
+        <a class="nav-item" data-page="settings">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          System Settings
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-badge">
+          <div class="user-avatar" id="avatar-initials">AD</div>
+          <div class="user-info">
+            <div class="user-name" id="user-display-name">Administrator</div>
+            <div class="user-role" id="user-display-role">System Administrator</div>
+          </div>
+          <button id="logout-btn" class="btn btn-secondary btn-sm" title="Sign Out">
+            <svg style="width: 14px; height: 14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN BODY -->
+    <main class="main-wrapper">
+      
+      <!-- TOP STATUS BAR -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <div class="active-election-badge" id="top-election-badge">
+            <div class="pulse-dot"></div>
+            <span id="top-election-title">2026 Presidential General Election (OPEN)</span>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <div class="time-display" id="lagos-clock">LAGOS: --:--:--</div>
+          <button id="btn-quick-refresh" class="btn btn-secondary btn-sm">Refresh State</button>
+        </div>
+      </header>
+
+      <!-- DYNAMIC CONTENT PAGES -->
+      <div class="content-container">
+        
+        <!-- PAGE 1: OVERVIEW DASHBOARD -->
+        <section id="page-overview" class="page-view">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Election Overview & Status</h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">Live operational metrics, voter turnout, and terminal telemetry.</p>
+          </div>
+
+          <!-- Alert for integrity mismatch if detected -->
+          <div id="integrity-alert" style="display: none; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; border-radius: var(--radius-sm); padding: 14px 20px; margin-bottom: 24px; color: #fca5a5;">
+            <strong>Warning: Ballot Reconciliation Anomaly Detected!</strong> Voter participation count does not match accepted ballot count.
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Eligible Registered Voters</div>
+              <div class="stat-value" id="stat-total-voters">0</div>
+              <div class="stat-sub">Voters qualified to vote</div>
+            </div>
+            <div class="stat-card cyan">
+              <div class="stat-label">Fingerprints Enrolled</div>
+              <div class="stat-value" id="stat-enrolled-fps">0</div>
+              <div class="stat-sub">Ready for terminal verification</div>
+            </div>
+            <div class="stat-card success">
+              <div class="stat-label">Voter Turnout</div>
+              <div class="stat-value" id="stat-turnout-pct">0.0%</div>
+              <div class="stat-sub"><span id="stat-total-voted">0</span> ballots cast</div>
+            </div>
+            <div class="stat-card warning">
+              <div class="stat-label">Online Terminals</div>
+              <div class="stat-value" id="stat-online-terminals">0 / 0</div>
+              <div class="stat-sub">ESP32 polling units reporting</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Turnout Progress</div>
+                  <div class="card-subtitle">Real-time participation rate</div>
+                </div>
+              </div>
+              <div style="margin: 20px 0;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 8px;">
+                  <span>Participation Completion</span>
+                  <span id="turnout-bar-label">0%</span>
+                </div>
+                <div style="width: 100%; height: 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-full); overflow: hidden;">
+                  <div id="turnout-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #3b82f6, #10b981); transition: width 0.5s ease;"></div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 32px; margin-top: 24px;">
+                <div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted);">ACCEPTED BALLOTS</div>
+                  <div style="font-size: 1.25rem; font-weight: 700; color: #fff;" id="overview-ballots-count">0</div>
+                </div>
+                <div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted);">PARTICIPATED VOTERS</div>
+                  <div style="font-size: 1.25rem; font-weight: 700; color: #fff;" id="overview-participants-count">0</div>
+                </div>
+                <div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted);">RECONCILIATION</div>
+                  <div id="overview-reconciliation-badge"><span class="badge badge-success">Consistent</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Active Election Details</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 14px; font-size: 0.86rem;">
+                <div>
+                  <div style="color: var(--text-muted); font-size: 0.76rem;">ELECTION CODE</div>
+                  <div id="overview-el-code" style="font-weight: 600; font-family: var(--font-mono); color: #fff;">-</div>
+                </div>
+                <div>
+                  <div style="color: var(--text-muted); font-size: 0.76rem;">STATUS</div>
+                  <div id="overview-el-status">-</div>
+                </div>
+                <div>
+                  <div style="color: var(--text-muted); font-size: 0.76rem;">SCHEDULED WINDOW</div>
+                  <div id="overview-el-dates" style="color: #cbd5e1;">-</div>
+                </div>
+                <div>
+                  <div style="color: var(--text-muted); font-size: 0.76rem;">BALLOT PRIVACY ARCHITECTURE</div>
+                  <div style="color: #34d399; font-weight: 500;">Zero-linkage anonymous storage</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 2: ELECTION MANAGEMENT -->
+        <section id="page-elections" class="page-view" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div>
+              <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Election Management</h1>
+              <p style="color: var(--text-muted); font-size: 0.88rem;">Configure voting schedules, lifecycles, and result permissions.</p>
+            </div>
+            <button id="btn-create-election" class="btn btn-primary">+ Create New Election</button>
+          </div>
+
+          <div class="card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Election Code</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Window</th>
+                    <th>Result Visibility</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="elections-table-body">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 3: POLITICAL PARTY MANAGEMENT & 16x4 LCD -->
+        <section id="page-parties" class="page-view" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div>
+              <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Political Parties & Terminal LCD Simulator</h1>
+              <p style="color: var(--text-muted); font-size: 0.88rem;">Manage ballot options and verify 16x4 LCD 8-character column constraints.</p>
+            </div>
+            <button id="btn-add-party" class="btn btn-primary">+ Add Political Party</button>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px;">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Configured Ballot Parties</div>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Order</th>
+                      <th>Acronym</th>
+                      <th>Full Name</th>
+                      <th>LCD Label (Max 8)</th>
+                      <th>Candidate</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="parties-table-body">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Live 16x4 Terminal LCD Simulator</div>
+                <div class="card-subtitle">Exactly what the voter sees on hardware</div>
+              </div>
+              
+              <div style="margin: 20px 0; display: flex; justify-content: center;">
+                <div class="lcd-simulator" id="lcd-screen-preview">
+                  <span class="lcd-line" id="lcd-row-1">Choose a party: </span>
+                  <span class="lcd-line" id="lcd-row-2">*Prev  1/2  #Next</span>
+                  <span class="lcd-line" id="lcd-row-3">A:APC     B:PDP </span>
+                  <span class="lcd-line" id="lcd-row-4">C:LP      D:NNPP</span>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 8px; justify-content: center; margin-top: 14px;">
+                <button id="lcd-nav-prev" class="btn btn-secondary btn-sm">&larr; Press * (Prev Page)</button>
+                <button id="lcd-nav-next" class="btn btn-secondary btn-sm">Press # (Next Page) &rarr;</button>
+              </div>
+
+              <div style="margin-top: 20px; font-size: 0.8rem; color: var(--text-muted); background: var(--bg-surface-elevated); padding: 12px; border-radius: var(--radius-sm);">
+                <strong>Keypad Rules:</strong><br>
+                &bull; <strong>A, B, C, D</strong>: Select displayed choice.<br>
+                &bull; <strong>Press same letter again</strong>: Confirm ballot selection.<br>
+                &bull; <strong>Press * on confirmation screen</strong>: Cancel and return to list.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 4: VOTER REGISTRY -->
+        <section id="page-voters" class="page-view" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div>
+              <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Voter Registry</h1>
+              <p style="color: var(--text-muted); font-size: 0.88rem;">Manage eligible voters and biometric enrollment records.</p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button id="btn-import-csv" class="btn btn-secondary">&#8679; Import CSV Register</button>
+              <button id="btn-add-voter" class="btn btn-primary">+ Register New Voter</button>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom: 20px; padding: 16px 20px;">
+            <div style="display: flex; gap: 16px; align-items: center;">
+              <input type="text" id="voter-search-input" class="form-input" style="max-width: 320px;" placeholder="Search Voter ID or Full Name...">
+              <button id="btn-search-voters" class="btn btn-secondary">Search</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Voter ID (Keypad)</th>
+                    <th>Full Name</th>
+                    <th>Eligibility</th>
+                    <th>Status</th>
+                    <th>Fingerprint</th>
+                    <th>Assigned Unit</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="voters-table-body">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 5: FINGERPRINT ENROLLMENT -->
+        <section id="page-enrollment" class="page-view" style="display: none;">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">AS608 Fingerprint Enrollment Control</h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">Trigger hardware enrollment on an online ESP32 voting terminal.</p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Start Biometric Enrollment</div>
+              </div>
+
+              <form id="enrollment-form">
+                <div class="form-group">
+                  <label class="form-label" for="enroll-voter-select">Select Registered Voter</label>
+                  <select id="enroll-voter-select" class="form-select" required>
+                    <!-- Populated dynamically -->
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="enroll-terminal-select">Select Online Voting Terminal</label>
+                  <select id="enroll-terminal-select" class="form-select" required>
+                    <!-- Populated dynamically -->
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="enroll-finger-label">Finger Label</label>
+                  <input type="text" id="enroll-finger-label" class="form-input" value="Right Index Finger">
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px;">Send Enrollment Command to Terminal</button>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Enrollment Instructions & Terminal Feedback</div>
+              </div>
+              <div id="enrollment-status-box" style="background: var(--bg-surface-elevated); padding: 24px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); min-height: 200px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                <svg style="width: 48px; height: 48px; color: var(--accent-cyan); margin-bottom: 12px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004 11m0 0a8 8 0 008 8c.706 0 1.392-.093 2.046-.269"/></svg>
+                <div style="font-weight: 700; font-size: 1.05rem; margin-bottom: 6px;" id="enroll-feedback-title">Awaiting Enrollment Request</div>
+                <p style="font-size: 0.84rem; color: var(--text-muted);" id="enroll-feedback-msg">Select a voter and an online terminal, then dispatch the command.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 6: VOTING TERMINALS -->
+        <section id="page-terminals" class="page-view" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div>
+              <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">ESP32 Voting Terminals</h1>
+              <p style="color: var(--text-muted); font-size: 0.88rem;">Monitor hardware connectivity, sensor memory, and telemetry heartbeats.</p>
+            </div>
+            <button id="btn-register-terminal" class="btn btn-primary">+ Register New Terminal</button>
+          </div>
+
+          <div class="card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Device ID</th>
+                    <th>Name</th>
+                    <th>Polling Station</th>
+                    <th>Status</th>
+                    <th>Firmware</th>
+                    <th>AS608 Memory</th>
+                    <th>Last Heartbeat</th>
+                  </tr>
+                </thead>
+                <tbody id="terminals-table-body">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 7: TURNOUT MONITORING -->
+        <section id="page-turnout" class="page-view" style="display: none;">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Voter Turnout & Participation</h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">Statistical participation breakdown with zero-knowledge ballot secrecy.</p>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Total Registered</div>
+              <div class="stat-value" id="turnout-total-reg">0</div>
+            </div>
+            <div class="stat-card success">
+              <div class="stat-label">Turnout Rate</div>
+              <div class="stat-value" id="turnout-rate-pct">0.0%</div>
+            </div>
+            <div class="stat-card warning">
+              <div class="stat-label">Pending Voters</div>
+              <div class="stat-value" id="turnout-pending-voters">0</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 8: ELECTION RESULTS -->
+        <section id="page-results" class="page-view" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div>
+              <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Certified Election Results</h1>
+              <p style="color: var(--text-muted); font-size: 0.88rem;">Aggregated party counts and ballot certification.</p>
+            </div>
+            <button id="btn-export-results" class="btn btn-secondary">&#128438; Print / Export Results</button>
+          </div>
+
+          <div class="card" id="results-display-card">
+            <div class="card-header">
+              <div class="card-title">Party Vote Tally</div>
+              <div id="results-status-badge"><span class="badge badge-success">Live Aggregate</span></div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Party</th>
+                    <th>Acronym</th>
+                    <th>Candidate</th>
+                    <th>Total Accepted Ballots</th>
+                    <th>Percentage (%)</th>
+                  </tr>
+                </thead>
+                <tbody id="results-table-body">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 9: REPORTS & EXPORTS -->
+        <section id="page-reports" class="page-view" style="display: none;">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Reports & Official Exports</h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">Download audit certified logs, voter registries, and terminal telemetry.</p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <div class="card">
+              <div class="card-title" style="margin-bottom: 8px;">Voter Register Report</div>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">Complete listing of registered voters, eligibility status, and enrollment status.</p>
+              <button onclick="window.print()" class="btn btn-secondary btn-sm">Print / Save PDF</button>
+            </div>
+            <div class="card">
+              <div class="card-title" style="margin-bottom: 8px;">Audit Trail Report</div>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">Comprehensive log of administrative actions, terminal events, and security logs.</p>
+              <button onclick="window.print()" class="btn btn-secondary btn-sm">Print / Save PDF</button>
+            </div>
+            <div class="card">
+              <div class="card-title" style="margin-bottom: 8px;">Election Results Certificate</div>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">Official aggregate party totals signed and reconciled with voter turnout.</p>
+              <button onclick="window.print()" class="btn btn-secondary btn-sm">Print / Save PDF</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 10: AUDIT LOGS -->
+        <section id="page-audit" class="page-view" style="display: none;">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Security & Audit Logs</h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">Cryptographic audit trail of all administrative and terminal transactions.</p>
+          </div>
+
+          <div class="card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Actor</th>
+                    <th>Event Type</th>
+                    <th>Result</th>
+                    <th>Severity</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-table-body">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 11: ADMINISTRATOR MANAGEMENT -->
+        <section id="page-admins" class="page-view" style="display: none;">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Administrator Accounts</h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">Role-based access controls and credential policies.</p>
+          </div>
+
+          <div class="card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Username</th>
+                    <th>Full Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>admin</strong></td>
+                    <td>Chief Electoral Commissioner</td>
+                    <td><span class="badge badge-info">System Administrator</span></td>
+                    <td><span class="badge badge-success">Active</span></td>
+                    <td>Just now</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE 12: SYSTEM SETTINGS -->
+        <section id="page-settings" class="page-view" style="display: none;">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">System Settings & Configuration</h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">Hardware parameters, timeouts, and ballot validation policies.</p>
+          </div>
+
+          <div class="card" style="max-width: 600px;">
+            <div class="form-group">
+              <label class="form-label">System Timezone</label>
+              <input type="text" class="form-input" value="Africa/Lagos" disabled>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Voter ID Length</label>
+              <input type="text" class="form-input" value="4 - 8 digits (Numeric Keypad)" disabled>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Terminal Heartbeat Timeout</label>
+              <input type="text" class="form-input" value="60 Seconds" disabled>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ballot Secrecy Policy</label>
+              <input type="text" class="form-input" value="Enforced (Zero Voter-Ballot Relational Foreign Keys)" disabled>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- MODALS -->
+  <!-- Create Election Modal -->
+  <div id="modal-create-election" class="modal-overlay">
+    <div class="modal-card">
+      <div class="card-header">
+        <div class="card-title">Create New Election</div>
+        <button class="btn btn-secondary btn-sm modal-close">&times;</button>
+      </div>
+      <form id="form-create-election">
+        <div class="form-group">
+          <label class="form-label">Election Code</label>
+          <input type="text" id="el-input-code" class="form-input" placeholder="e.g. ELEC-2026-NIG" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input type="text" id="el-input-title" class="form-input" placeholder="e.g. 2026 Presidential General Election" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Starts At</label>
+          <input type="datetime-local" id="el-input-starts" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ends At</label>
+          <input type="datetime-local" id="el-input-ends" class="form-input" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Create Election</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Voter Modal -->
+  <div id="modal-add-voter" class="modal-overlay">
+    <div class="modal-card">
+      <div class="card-header">
+        <div class="card-title">Register Voter</div>
+        <button class="btn btn-secondary btn-sm modal-close">&times;</button>
+      </div>
+      <form id="form-add-voter">
+        <div class="form-group">
+          <label class="form-label">Voter ID (Digits for 4x4 Keypad)</label>
+          <input type="text" id="voter-input-id" class="form-input" placeholder="e.g. 1007" pattern="\d+" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" id="voter-input-name" class="form-input" placeholder="e.g. Babatunde Fashola" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Register Voter</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Party Modal -->
+  <div id="modal-add-party" class="modal-overlay">
+    <div class="modal-card">
+      <div class="card-header">
+        <div class="card-title">Add Political Party</div>
+        <button class="btn btn-secondary btn-sm modal-close">&times;</button>
+      </div>
+      <form id="form-add-party">
+        <div class="form-group">
+          <label class="form-label">Party Full Name</label>
+          <input type="text" id="party-input-name" class="form-input" placeholder="e.g. All Progressives Congress" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Acronym</label>
+          <input type="text" id="party-input-acronym" class="form-input" placeholder="e.g. APC" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">LCD Label (Max 8 characters for 16x4 display)</label>
+          <input type="text" id="party-input-lcd" class="form-input" maxlength="8" placeholder="e.g. APC" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Candidate Name</label>
+          <input type="text" id="party-input-candidate" class="form-input" placeholder="e.g. Bola Tinubu">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Add Party</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
