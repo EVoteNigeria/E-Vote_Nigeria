@@ -24,21 +24,31 @@ struct BallotOption {
 
 class ApiClient {
 private:
+  WiFiClientSecure secureClient;
+  bool clientConfigured;
+
+  void setupClient() {
+    if (!clientConfigured) {
+      secureClient.setInsecure();
+      secureClient.setTimeout(12);
+      clientConfigured = true;
+    }
+  }
+
   void beginRequest(HTTPClient &http, const String &url) {
     if (url.startsWith("https://")) {
-      WiFiClientSecure *client = new WiFiClientSecure;
-      if (client) {
-        client->setInsecure(); // Allow cloud SSL without hardcoding certificates
-        http.begin(*client, url);
-      }
+      setupClient();
+      http.begin(secureClient, url);
     } else {
       http.begin(url);
     }
   }
 
 public:
+  ApiClient() : clientConfigured(false) {}
+
   void begin() {
-    // WiFi begins via network manager
+    setupClient();
   }
 
   bool isConnected() {
