@@ -19,7 +19,10 @@ import datetime
 import re
 from pathlib import Path
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+NEON_DATABASE_URL = "postgresql://neondb_owner:npg_R6M2SGWNEejH@ep-snowy-salad-b4lw642q-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require"
+DATABASE_URL = os.environ.get("DATABASE_URL", NEON_DATABASE_URL)
+if os.environ.get("USE_LOCAL_SQLITE") == "1":
+    DATABASE_URL = None
 DB_PATH = os.environ.get("VOTE_DB_PATH", str(Path(__file__).parent / "evote.db"))
 
 # Check for psycopg2 availability

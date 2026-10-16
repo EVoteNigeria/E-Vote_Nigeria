@@ -869,7 +869,7 @@ def cast_ballot(device_id: str, payload: DeviceVoteRequest, terminal: dict = Dep
         part_id = str(uuid.uuid4())
         cursor.execute("""
             INSERT INTO voter_participation (id, election_id, voter_id, participation_status, voted, polling_location_id)
-            VALUES (?, ?, ?, 'Voted', 1, ?)
+            VALUES (?, ?, ?, 'Voted', TRUE, ?)
         """, (part_id, payload.election_id, voter["id"], terminal["polling_location_id"]))
 
         # B) Insert anonymous ballot record (NO voter_id, NO fingerprint_id, NO receipt)
@@ -930,7 +930,7 @@ def get_election_results(election_id: str, current_admin: dict = Depends(get_cur
         FROM ballots b
         JOIN ballot_options p ON b.selected_option_id = p.id
         WHERE b.election_id = ? AND b.ballot_status = 'Accepted'
-        GROUP BY b.selected_option_id
+        GROUP BY b.selected_option_id, p.party_name, p.party_acronym, p.lcd_label, p.candidate_name
         ORDER BY vote_count DESC
     """, (election_id,))
     results = [dict(row) for row in cursor.fetchall()]
