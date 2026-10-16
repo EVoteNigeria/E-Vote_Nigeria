@@ -4,8 +4,12 @@ Creates default administrators, sample election, sample political parties, and d
 """
 
 import uuid
-from database import get_db, init_db
-from security import get_password_hash
+try:
+    from backend.database import get_db, init_db
+    from backend.security import get_password_hash
+except ImportError:
+    from database import get_db, init_db
+    from security import get_password_hash
 
 def seed_data():
     init_db()

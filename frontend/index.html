@@ -129,6 +129,7 @@
           </div>
         </div>
         <div class="topbar-right">
+          <div id="top-db-status" class="badge badge-info" style="font-size: 0.75rem; padding: 4px 10px; cursor: pointer;" title="Click for Database Persistence Information">DB: Checking...</div>
           <div class="time-display" id="lagos-clock">LAGOS: --:--:--</div>
           <button id="btn-quick-refresh" class="btn btn-secondary btn-sm">Refresh State</button>
         </div>
@@ -136,6 +137,20 @@
 
       <!-- DYNAMIC CONTENT PAGES -->
       <div class="content-container">
+
+        <!-- SESSION RECOVERY ALERT -->
+        <div id="session-recovery-alert" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; border-radius: var(--radius-sm); padding: 14px 20px; margin-bottom: 24px; color: #fde68a;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <strong style="color: #fbbf24;">⚠️ Previous Session Data Detected:</strong>
+              <span>Your active server currently has default data, but <strong id="recovery-voter-count">0</strong> voter records were detected in your browser session backup!</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-restore-session" class="btn btn-primary btn-sm">&#8635; Restore Session Data</button>
+              <button id="btn-dismiss-recovery" class="btn btn-secondary btn-sm">&times; Dismiss</button>
+            </div>
+          </div>
+        </div>
         
         <!-- PAGE 1: OVERVIEW DASHBOARD -->
         <section id="page-overview" class="page-view">
@@ -599,27 +614,85 @@
         <!-- PAGE 12: SYSTEM SETTINGS -->
         <section id="page-settings" class="page-view" style="display: none;">
           <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">System Settings & Configuration</h1>
-            <p style="color: var(--text-muted); font-size: 0.88rem;">Hardware parameters, timeouts, and ballot validation policies.</p>
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">System Settings & Data Persistence</h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">Database persistence, backup/restore controls, hardware parameters, and election policies.</p>
           </div>
 
-          <div class="card" style="max-width: 600px;">
-            <div class="form-group">
-              <label class="form-label">System Timezone</label>
-              <input type="text" class="form-input" value="Africa/Lagos" disabled>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+            
+            <!-- Card 1: Database Persistence Status -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Database Storage & Engine</div>
+                <div id="settings-db-badge" class="badge badge-info">Checking...</div>
+              </div>
+              <div style="margin-bottom: 16px;">
+                <div style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 6px;">Active Database Engine:</div>
+                <div id="settings-db-engine" style="font-weight: 700; font-size: 1.05rem; color: #fff;">--</div>
+              </div>
+              <div style="margin-bottom: 16px;">
+                <div style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 6px;">Persistence Mode:</div>
+                <div id="settings-db-guidance" style="font-size: 0.84rem; line-height: 1.5; color: var(--text-dim);">Loading persistence details...</div>
+              </div>
+              <div style="border-top: 1px solid var(--border-subtle); padding-top: 16px; margin-top: 16px;">
+                <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 8px;">Database Records Currently In Memory:</div>
+                <div style="display: flex; gap: 16px; font-size: 0.84rem;">
+                  <div>Voters: <strong id="settings-count-voters">0</strong></div>
+                  <div>Ballots: <strong id="settings-count-ballots">0</strong></div>
+                  <div>Enrolled: <strong id="settings-count-enrolled">0</strong></div>
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Voter ID Length</label>
-              <input type="text" class="form-input" value="4 - 8 digits (Numeric Keypad)" disabled>
+
+            <!-- Card 2: Backup & Disaster Recovery -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Disaster Recovery & Backups</div>
+                <span class="badge badge-success">Active</span>
+              </div>
+              <p style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 20px;">
+                Download a complete, portable JSON backup of your voters, ballot options, and voting records, or restore previous election data with one click.
+              </p>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button id="btn-download-backup" class="btn btn-primary" style="width: 100%; justify-content: center;">
+                  &#128190; Download Complete Database Backup (JSON)
+                </button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="file" id="input-restore-file" accept=".json" style="display: none;">
+                  <button id="btn-trigger-file-restore" class="btn btn-secondary" style="flex: 1; justify-content: center;">
+                    &#128228; Restore from Backup File
+                  </button>
+                  <button id="btn-clear-cache" class="btn btn-secondary btn-sm" title="Clear local browser session cache" style="padding: 10px;">
+                    Clear Cache
+                  </button>
+                </div>
+                <div id="restore-status-msg" style="display: none; font-size: 0.82rem; padding: 10px; border-radius: var(--radius-sm);"></div>
+              </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Terminal Heartbeat Timeout</label>
-              <input type="text" class="form-input" value="60 Seconds" disabled>
+
+            <!-- Card 3: System Policies -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Election & Terminal Policies</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">System Timezone</label>
+                <input type="text" class="form-input" value="Africa/Lagos" disabled>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Voter ID Length</label>
+                <input type="text" class="form-input" value="4 - 8 digits (Numeric Keypad)" disabled>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Terminal Heartbeat Timeout</label>
+                <input type="text" class="form-input" value="60 Seconds" disabled>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Ballot Secrecy Policy</label>
+                <input type="text" class="form-input" value="Enforced (Zero Voter-Ballot Relational Foreign Keys)" disabled>
+              </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Ballot Secrecy Policy</label>
-              <input type="text" class="form-input" value="Enforced (Zero Voter-Ballot Relational Foreign Keys)" disabled>
-            </div>
+
           </div>
         </section>
 
@@ -703,6 +776,37 @@
           <input type="text" id="party-input-candidate" class="form-input" placeholder="e.g. Bola Tinubu">
         </div>
         <button type="submit" class="btn btn-primary" style="width: 100%;">Add Party</button>
+  <!-- Direct Slot Mapping Modal -->
+  <div id="modal-map-slot" class="modal-overlay">
+    <div class="modal-card">
+      <div class="card-header">
+        <div class="card-title">Link Hardware Sensor Slot</div>
+        <button class="btn btn-secondary btn-sm modal-close">&times;</button>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.84rem; margin-bottom: 16px;">
+        If this voter was already scanned on the AS608 optical sensor, enter their sensor slot ID below to restore biometric authentication instantly without re-placing their finger.
+      </p>
+      <form id="form-map-slot">
+        <input type="hidden" id="map-slot-voter-id">
+        <div class="form-group">
+          <label class="form-label">Selected Voter</label>
+          <input type="text" id="map-slot-voter-name" class="form-input" disabled>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Voting Terminal</label>
+          <select id="map-slot-terminal-select" class="form-input">
+            <option value="ESP32-01">Voting Terminal 01 (ESP32-01)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">AS608 Sensor Slot ID (1 - 127)</label>
+          <input type="number" id="map-slot-number" class="form-input" min="1" max="127" placeholder="e.g. 1" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Finger Label</label>
+          <input type="text" id="map-slot-finger" class="form-input" value="Right Index Finger">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Save Slot Association</button>
       </form>
     </div>
   </div>

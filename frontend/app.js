@@ -100,6 +100,7 @@ function loadPageData(page) {
     case 'turnout': loadTurnout(); break;
     case 'results': loadResults(); break;
     case 'audit': loadAuditLogs(); break;
+    case 'settings': loadSettingsView(); break;
   }
 }
 
@@ -148,6 +149,9 @@ async function loadOverview() {
       alertEl.style.display = 'none';
       document.getElementById('overview-reconciliation-badge').innerHTML = '<span class="badge badge-success">Consistent</span>';
     }
+    await updateDbStatus();
+    const voters = await apiRequest('/api/v1/voters');
+    checkSessionRecovery(voters);
   } catch (err) {
     console.error('Error loading overview:', err);
   }
@@ -307,9 +311,15 @@ window.deleteParty = async function(id) {
 async function loadVoters(searchQuery = '') {
   const url = searchQuery ? `/api/v1/voters?search=${encodeURIComponent(searchQuery)}` : '/api/v1/voters';
   const voters = await apiRequest(url);
+  
+  if (Array.isArray(voters)) {
+    cacheVotersSession(voters);
+  }
+
   const tbody = document.getElementById('voters-table-body');
   tbody.innerHTML = '';
   voters.forEach(v => {
+    const safeName = (v.full_name || '').replace(/'/g, "\\'");
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><strong>${v.voter_id}</strong></td>
@@ -319,7 +329,10 @@ async function loadVoters(searchQuery = '') {
       <td>${v.fp_status === 'Enrolled' ? `<span class="badge badge-success">Slot #${v.sensor_slot_id}</span>` : `<span class="badge badge-warning">Not Enrolled</span>`}</td>
       <td>${v.polling_location_name || 'PU-01-LAG'}</td>
       <td>
-        <button onclick="triggerEnrollFor('${v.id}')" class="btn btn-secondary btn-sm">&#9757; Enroll Finger</button>
+        <div style="display: flex; gap: 6px;">
+          <button onclick="triggerEnrollFor('${v.id}')" class="btn btn-secondary btn-sm" title="Queue hardware fingerprint scan on ESP32">&#9757; Enroll</button>
+          <button onclick="openMapSlotModal('${v.id}', '${v.voter_id}', '${safeName}')" class="btn btn-secondary btn-sm" title="Directly link to existing AS608 hardware slot without re-scanning">&#128279; Link Slot</button>
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
@@ -506,4 +519,257 @@ if (authToken && currentAdmin) {
 } else {
   document.getElementById('login-view').style.display = 'flex';
   document.getElementById('app-view').style.display = 'none';
+}
+
+// ========================================================
+// DATABASE PERSISTENCE, BACKUP & SESSION RECOVERY MODULE
+// ========================================================
+
+// 1. Database Status & Engine Indicator
+async function updateDbStatus() {
+  try {
+    const status = await apiRequest('/api/v1/system/db-status');
+    const topBadge = document.getElementById('top-db-status');
+    if (topBadge && status) {
+      if (status.is_persistent) {
+        topBadge.className = 'badge badge-success';
+        topBadge.textContent = status.engine === 'postgresql' ? '🟢 PostgreSQL (Persistent)' : '🟢 SQLite (Local Persistent)';
+      } else {
+        topBadge.className = 'badge badge-warning';
+        topBadge.textContent = '🟠 SQLite (Ephemeral Cloud)';
+      }
+      topBadge.onclick = () => {
+        const settingsNav = document.querySelector('[data-page="settings"]');
+        if (settingsNav) settingsNav.click();
+      };
+    }
+    return status;
+  } catch (err) {
+    console.error('Error updating DB status:', err);
+    return null;
+  }
+}
+
+// 2. Browser Session Storage Caching & Auto-Recovery
+function cacheVotersSession(currentVoters) {
+  if (!currentVoters || !Array.isArray(currentVoters)) return;
+  try {
+    const stored = JSON.parse(localStorage.getItem('evote_session_backup_voters') || '[]');
+    const map = new Map();
+    stored.forEach(v => map.set(v.voter_id, v));
+    currentVoters.forEach(v => map.set(v.voter_id, v));
+    const merged = Array.from(map.values());
+    localStorage.setItem('evote_session_backup_voters', JSON.stringify(merged));
+  } catch (e) {
+    console.warn('Failed to cache voters to localStorage:', e);
+  }
+}
+
+function checkSessionRecovery(serverVoters) {
+  const alertEl = document.getElementById('session-recovery-alert');
+  if (!alertEl) return;
+
+  try {
+    const stored = JSON.parse(localStorage.getItem('evote_session_backup_voters') || '[]');
+    if (!stored || stored.length === 0) {
+      alertEl.style.display = 'none';
+      return;
+    }
+
+    const serverIds = new Set((serverVoters || []).map(v => v.voter_id));
+    const missing = stored.filter(v => !serverIds.has(v.voter_id));
+
+    if (missing.length > 0) {
+      document.getElementById('recovery-voter-count').textContent = missing.length;
+      alertEl.style.display = 'block';
+    } else {
+      alertEl.style.display = 'none';
+    }
+  } catch (e) {
+    alertEl.style.display = 'none';
+  }
+}
+
+// 3. Direct Hardware Slot Mapping
+window.openMapSlotModal = function(id, voterId, fullName) {
+  document.getElementById('map-slot-voter-id').value = voterId;
+  document.getElementById('map-slot-voter-name').value = `${fullName} (ID: ${voterId})`;
+  document.getElementById('map-slot-number').value = '';
+  openModal('modal-map-slot');
+};
+
+const formMapSlot = document.getElementById('form-map-slot');
+if (formMapSlot) {
+  formMapSlot.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const voterId = document.getElementById('map-slot-voter-id').value;
+    const termId = document.getElementById('map-slot-terminal-select').value;
+    const slotNum = parseInt(document.getElementById('map-slot-number').value, 10);
+    const finger = document.getElementById('map-slot-finger').value;
+
+    try {
+      const res = await apiRequest(`/api/v1/voters/${voterId}/map-slot`, 'POST', {
+        device_id: termId,
+        sensor_slot_id: slotNum,
+        finger_label: finger
+      });
+      closeModal('modal-map-slot');
+      alert(res.message || 'Slot mapped successfully!');
+      loadVoters();
+      loadOverview();
+    } catch (err) {
+      alert('Error mapping slot: ' + (err.message || err));
+    }
+  });
+}
+
+// 4. System Settings & Persistence View
+async function loadSettingsView() {
+  const status = await updateDbStatus();
+  if (status) {
+    const badge = document.getElementById('settings-db-badge');
+    if (badge) {
+      badge.className = `badge badge-${status.is_persistent ? 'success' : 'warning'}`;
+      badge.textContent = status.status_label;
+    }
+    const engineEl = document.getElementById('settings-db-engine');
+    if (engineEl) engineEl.textContent = `${status.engine.toUpperCase()} (${status.is_persistent ? 'Persistent across all reboots' : 'Ephemeral - Resets on container sleep'})`;
+    const guidanceEl = document.getElementById('settings-db-guidance');
+    if (guidanceEl) guidanceEl.textContent = status.guidance;
+    const countV = document.getElementById('settings-count-voters');
+    if (countV) countV.textContent = status.voter_count;
+    const countB = document.getElementById('settings-count-ballots');
+    if (countB) countB.textContent = status.ballot_count;
+    const countE = document.getElementById('settings-count-enrolled');
+    if (countE) countE.textContent = status.enrolled_count;
+  }
+}
+
+// 5. Download Backup (JSON)
+const btnDownloadBackup = document.getElementById('btn-download-backup');
+if (btnDownloadBackup) {
+  btnDownloadBackup.addEventListener('click', async () => {
+    try {
+      btnDownloadBackup.disabled = true;
+      btnDownloadBackup.textContent = 'Generating Backup...';
+      const backup = await apiRequest('/api/v1/system/backup');
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `evote_system_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      btnDownloadBackup.innerHTML = '&#128190; Download Complete Database Backup (JSON)';
+      btnDownloadBackup.disabled = false;
+    } catch (err) {
+      alert('Failed to generate backup: ' + err.message);
+      btnDownloadBackup.disabled = false;
+    }
+  });
+}
+
+// 6. Restore from File
+const btnTriggerRestore = document.getElementById('btn-trigger-file-restore');
+const inputRestoreFile = document.getElementById('input-restore-file');
+const restoreStatusMsg = document.getElementById('restore-status-msg');
+
+if (btnTriggerRestore && inputRestoreFile) {
+  btnTriggerRestore.addEventListener('click', () => inputRestoreFile.click());
+
+  inputRestoreFile.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const parsed = JSON.parse(evt.target.result);
+        const res = await apiRequest('/api/v1/system/restore', 'POST', { data: parsed });
+        if (restoreStatusMsg) {
+          restoreStatusMsg.style.display = 'block';
+          restoreStatusMsg.style.background = 'rgba(52, 211, 153, 0.2)';
+          restoreStatusMsg.style.color = '#34d399';
+          restoreStatusMsg.textContent = `Restored successfully! Voters: ${res.summary.voters_restored}, Fingerprints: ${res.summary.fingerprints_restored}, Ballots: ${res.summary.ballots_restored}`;
+        }
+        loadOverview();
+        loadSettingsView();
+        loadVoters();
+      } catch (err) {
+        if (restoreStatusMsg) {
+          restoreStatusMsg.style.display = 'block';
+          restoreStatusMsg.style.background = 'rgba(239, 68, 68, 0.2)';
+          restoreStatusMsg.style.color = '#f87171';
+          restoreStatusMsg.textContent = 'Restore failed: ' + (err.message || err);
+        }
+      }
+      inputRestoreFile.value = '';
+    };
+    reader.readAsText(file);
+  });
+}
+
+// 7. Restore Session Data from Alert Banner
+const btnRestoreSession = document.getElementById('btn-restore-session');
+if (btnRestoreSession) {
+  btnRestoreSession.addEventListener('click', async () => {
+    btnRestoreSession.disabled = true;
+    btnRestoreSession.textContent = 'Restoring...';
+    try {
+      const stored = JSON.parse(localStorage.getItem('evote_session_backup_voters') || '[]');
+      let count = 0;
+      for (const v of stored) {
+        try {
+          await apiRequest('/api/v1/voters', 'POST', {
+            voter_id: v.voter_id,
+            full_name: v.full_name,
+            registration_status: v.registration_status || 'Active',
+            eligibility_status: v.eligibility_status || 'Eligible',
+            polling_location_id: v.polling_location_id || 'loc_lagos_central'
+          });
+          count++;
+        } catch (e) {
+          // Skip if already in DB
+        }
+        if (v.sensor_slot_id && v.fp_status === 'Enrolled') {
+          try {
+            await apiRequest(`/api/v1/voters/${v.voter_id}/map-slot`, 'POST', {
+              device_id: 'ESP32-01',
+              sensor_slot_id: parseInt(v.sensor_slot_id, 10),
+              finger_label: 'Right Index Finger'
+            });
+          } catch (e) {}
+        }
+      }
+      document.getElementById('session-recovery-alert').style.display = 'none';
+      alert(`Restoration complete! Recovered ${count} voter records into the active database.`);
+      loadOverview();
+      loadVoters();
+    } catch (err) {
+      alert('Error restoring session: ' + err.message);
+    } finally {
+      btnRestoreSession.disabled = false;
+      btnRestoreSession.innerHTML = '&#8635; Restore Session Data';
+    }
+  });
+}
+
+const btnDismissRecovery = document.getElementById('btn-dismiss-recovery');
+if (btnDismissRecovery) {
+  btnDismissRecovery.addEventListener('click', () => {
+    document.getElementById('session-recovery-alert').style.display = 'none';
+  });
+}
+
+const btnClearCache = document.getElementById('btn-clear-cache');
+if (btnClearCache) {
+  btnClearCache.addEventListener('click', () => {
+    if (confirm('Clear local browser session cache of voters?')) {
+      localStorage.removeItem('evote_session_backup_voters');
+      document.getElementById('session-recovery-alert').style.display = 'none';
+      alert('Browser session cache cleared.');
+    }
+  });
 }

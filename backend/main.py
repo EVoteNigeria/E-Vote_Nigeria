@@ -26,7 +26,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from backend.database import get_db, init_db
+from backend.database import (
+    get_db, init_db, get_db_engine_name, is_database_persistent,
+    export_database_records, import_database_records
+)
 from backend.seed import seed_data
 from backend.security import (
     verify_password, get_password_hash, create_access_token,
@@ -110,6 +113,14 @@ class StartEnrollmentRequest(BaseModel):
     voter_uuid: str
     device_id: str
     finger_label: str = "Right Index Finger"
+
+class MapSlotRequest(BaseModel):
+    device_id: str = "ESP32-01"
+    sensor_slot_id: int
+    finger_label: str = "Right Index Finger"
+
+class RestoreRequest(BaseModel):
+    data: dict
 
 class DeviceVoteRequest(BaseModel):
     election_id: str
@@ -988,6 +999,97 @@ def get_system_settings(current_admin: dict = Depends(get_current_admin)):
     settings = {row["key"]: row["value"] for row in cursor.fetchall()}
     conn.close()
     return settings
+
+# ----------------------------------------------------
+# 11. Database Persistence, Backup & Hardware Slot Mapping
+# ----------------------------------------------------
+
+@app.get("/api/v1/system/db-status")
+def get_db_status(current_admin: dict = Depends(get_current_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) as count FROM voters")
+    voter_count = cursor.fetchone()["count"]
+    cursor.execute("SELECT COUNT(*) as count FROM ballots")
+    ballot_count = cursor.fetchone()["count"]
+    cursor.execute("SELECT COUNT(*) as count FROM voter_fingerprint_mappings WHERE enrollment_status = 'Enrolled'")
+    enrolled_count = cursor.fetchone()["count"]
+    conn.close()
+
+    engine = get_db_engine_name()
+    persistent = is_database_persistent()
+    return {
+        "engine": engine,
+        "is_persistent": persistent,
+        "voter_count": voter_count,
+        "ballot_count": ballot_count,
+        "enrolled_count": enrolled_count,
+        "status_label": "Persistent Cloud Database (PostgreSQL)" if (persistent and engine == "postgresql") else ("Local Persistent SQLite" if persistent else "Ephemeral SQLite (Render Cloud - Data Resets On Sleep)"),
+        "guidance": "All data will be saved permanently across reboots." if persistent else "Running on Render with ephemeral disk. To make data permanent, connect a PostgreSQL database via DATABASE_URL or use the automated Backup & Restore tool."
+    }
+
+@app.get("/api/v1/system/backup")
+def get_database_backup(current_admin: dict = Depends(require_roles(["System Administrator", "Auditor / Observer"]))):
+    backup = export_database_records()
+    log_audit_event("Administrator", "EXPORT_DATABASE_BACKUP", "Success", "Exported database backup JSON", actor_id=current_admin["id"])
+    return backup
+
+@app.post("/api/v1/system/restore")
+def restore_database_backup(payload: RestoreRequest, current_admin: dict = Depends(require_roles(["System Administrator"]))):
+    try:
+        summary = import_database_records(payload.data)
+        log_audit_event("Administrator", "RESTORE_DATABASE_BACKUP", "Success", f"Restored database records: {summary}", actor_id=current_admin["id"])
+        return {"message": "Database backup restored successfully", "summary": summary}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to restore database: {str(e)}")
+
+@app.post("/api/v1/voters/{voter_id}/map-slot")
+def map_voter_slot(voter_id: str, payload: MapSlotRequest, current_admin: dict = Depends(require_roles(["System Administrator", "Voter Registration Officer"]))):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM voters WHERE id = ? OR voter_id = ?", (voter_id, voter_id))
+    voter = cursor.fetchone()
+    if not voter:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Voter not found")
+
+    cursor.execute("SELECT * FROM terminals WHERE id = ? OR device_id = ?", (payload.device_id, payload.device_id))
+    terminal = cursor.fetchone()
+    if not terminal:
+        conn.close()
+        raise HTTPException(status_code=404, detail=f"Terminal {payload.device_id} not registered")
+
+    # Check if slot already mapped on this terminal to someone else
+    cursor.execute("SELECT * FROM voter_fingerprint_mappings WHERE device_id = ? AND sensor_slot_id = ? AND enrollment_status = 'Enrolled'", (terminal["id"], payload.sensor_slot_id))
+    existing = cursor.fetchone()
+    if existing and existing["voter_id"] != voter["id"]:
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"Sensor slot #{payload.sensor_slot_id} on {payload.device_id} is already mapped to another voter")
+
+    # Insert or update mapping
+    cursor.execute("DELETE FROM voter_fingerprint_mappings WHERE voter_id = ? AND device_id = ?", (voter["id"], terminal["id"]))
+    cursor.execute("""
+        INSERT INTO voter_fingerprint_mappings (
+            id, voter_id, device_id, sensor_slot_id, finger_label, enrollment_status, enrolled_by
+        ) VALUES (?, ?, ?, ?, ?, 'Enrolled', ?)
+    """, (str(uuid.uuid4()), voter["id"], terminal["id"], payload.sensor_slot_id, payload.finger_label, current_admin["id"]))
+
+    # Update terminal sensor slot count
+    cursor.execute("""
+        UPDATE terminals SET sensor_slots_used = (
+            SELECT COUNT(*) FROM voter_fingerprint_mappings WHERE device_id = ? AND enrollment_status = 'Enrolled'
+        ) WHERE id = ?
+    """, (terminal["id"], terminal["id"]))
+
+    conn.commit()
+    conn.close()
+
+    log_audit_event("Administrator", "LINK_BIOMETRIC_SLOT", "Success", f"Directly linked voter {voter['voter_id']} to AS608 Slot #{payload.sensor_slot_id} on {payload.device_id}", actor_id=current_admin["id"], target_type="Voter", target_id=voter["id"])
+    return {
+        "message": f"Successfully mapped voter {voter['voter_id']} ({voter['full_name']}) to sensor slot #{payload.sensor_slot_id}",
+        "voter_id": voter["voter_id"],
+        "slot_id": payload.sensor_slot_id
+    }
 
 # Mount Frontend Dashboard Static Files
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")

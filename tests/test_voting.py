@@ -25,6 +25,12 @@ class TestEVotingSystem(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         init_db()
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM voter_participation WHERE voter_id IN (SELECT id FROM voters WHERE voter_id = '1001')")
+        cursor.execute("DELETE FROM ballots WHERE election_id = 'election_2026_presidential'")
+        conn.commit()
+        conn.close()
 
     def test_01_admin_login(self):
         resp = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"})
