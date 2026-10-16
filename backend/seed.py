@@ -68,7 +68,7 @@ def seed_data():
         cursor.executemany("""
             INSERT INTO ballot_options (
                 id, election_id, party_name, party_acronym, lcd_label, candidate_name, display_order, is_active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)
         """, parties)
         print("Sample political parties created.")
 

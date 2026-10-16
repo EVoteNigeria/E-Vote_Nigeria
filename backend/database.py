@@ -81,6 +81,10 @@ class PostgresCursorWrapper:
             if not re.search(r'\bON\s+CONFLICT\b', q, re.IGNORECASE):
                 q = q.rstrip('; ') + ' ON CONFLICT DO NOTHING'
 
+        # Translate SQLite integer boolean comparisons to Postgres booleans
+        q = re.sub(r'\b(is_active|voted|mfa_enabled|force_password_reset)\s*=\s*1\b', r'\1 = TRUE', q, flags=re.IGNORECASE)
+        q = re.sub(r'\b(is_active|voted|mfa_enabled|force_password_reset)\s*=\s*0\b', r'\1 = FALSE', q, flags=re.IGNORECASE)
+
         # Translate ? to %s
         q = q.replace('?', '%s')
         return q, None

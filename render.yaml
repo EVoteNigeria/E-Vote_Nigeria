@@ -10,12 +10,4 @@ services:
       - key: VOTE_DB_PATH
         value: backend/evote.db
       - key: DATABASE_URL
-        fromDatabase:
-          name: evote-db
-          property: connectionString
-
-databases:
-  - name: evote-db
-    databaseName: evotedb
-    user: evote_user
-    plan: free
+        value: postgresql://neondb_owner:npg_R6M2SGWNEejH@ep-snowy-salad-b4lw642q-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require
