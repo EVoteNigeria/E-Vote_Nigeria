@@ -88,6 +88,32 @@ class PostgresCursorWrapper:
         q = re.sub(r'\b(is_active|voted|mfa_enabled|force_password_reset)\s*=\s*1\b', r'\1 = TRUE', q, flags=re.IGNORECASE)
         q = re.sub(r'\b(is_active|voted|mfa_enabled|force_password_reset)\s*=\s*0\b', r'\1 = FALSE', q, flags=re.IGNORECASE)
 
+        # Translate SQLite datetime expressions to Postgres
+        q = re.sub(
+            r"datetime\s*\(\s*['\"]now['\"]\s*,\s*['\"]-\s*(\d+)\s*([a-zA-Z]+)['\"]\s*\)",
+            r"(CURRENT_TIMESTAMP - INTERVAL '\1 \2')",
+            q,
+            flags=re.IGNORECASE
+        )
+        q = re.sub(
+            r"datetime\s*\(\s*['\"]now['\"]\s*,\s*['\"]\+?\s*(\d+)\s*([a-zA-Z]+)['\"]\s*\)",
+            r"(CURRENT_TIMESTAMP + INTERVAL '\1 \2')",
+            q,
+            flags=re.IGNORECASE
+        )
+        q = re.sub(
+            r"datetime\s*\(\s*['\"]now['\"]\s*\)",
+            "CURRENT_TIMESTAMP",
+            q,
+            flags=re.IGNORECASE
+        )
+        q = re.sub(
+            r"datetime\s*\(\s*([a-zA-Z0-9_.]+)\s*\)",
+            r"(\1)::timestamp",
+            q,
+            flags=re.IGNORECASE
+        )
+
         # Translate ? to %s
         q = q.replace('?', '%s')
         return q, None
@@ -198,6 +224,64 @@ def init_db():
     is_pg = is_postgres_configured()
     bool_true = "TRUE" if is_pg else "1"
     bool_false = "FALSE" if is_pg else "0"
+
+    if is_pg:
+        # Create PostgreSQL compatibility functions for SQLite datetime expressions
+        cursor.execute("""
+        CREATE OR REPLACE FUNCTION datetime(ts timestamp without time zone)
+        RETURNS timestamp without time zone AS $$
+        BEGIN
+            RETURN ts;
+        END;
+        $$ LANGUAGE plpgsql IMMUTABLE;
+
+        CREATE OR REPLACE FUNCTION datetime(ts timestamp with time zone)
+        RETURNS timestamp with time zone AS $$
+        BEGIN
+            RETURN ts;
+        END;
+        $$ LANGUAGE plpgsql IMMUTABLE;
+
+        CREATE OR REPLACE FUNCTION datetime(str text)
+        RETURNS timestamp without time zone AS $$
+        BEGIN
+            IF lower(str) = 'now' THEN
+                RETURN CURRENT_TIMESTAMP;
+            END IF;
+            RETURN str::timestamp;
+        END;
+        $$ LANGUAGE plpgsql STABLE;
+
+        CREATE OR REPLACE FUNCTION datetime(str text, modifier text)
+        RETURNS timestamp without time zone AS $$
+        DECLARE
+            mod_clean text;
+            is_neg boolean := false;
+        BEGIN
+            mod_clean := trim(modifier);
+            IF left(mod_clean, 1) = '-' THEN
+                is_neg := true;
+                mod_clean := trim(substring(mod_clean from 2));
+            ELSIF left(mod_clean, 1) = '+' THEN
+                mod_clean := trim(substring(mod_clean from 2));
+            END IF;
+
+            IF lower(str) = 'now' THEN
+                IF is_neg THEN
+                    RETURN CURRENT_TIMESTAMP - mod_clean::interval;
+                ELSE
+                    RETURN CURRENT_TIMESTAMP + mod_clean::interval;
+                END IF;
+            ELSE
+                IF is_neg THEN
+                    RETURN str::timestamp - mod_clean::interval;
+                ELSE
+                    RETURN str::timestamp + mod_clean::interval;
+                END IF;
+            END IF;
+        END;
+        $$ LANGUAGE plpgsql STABLE;
+        """)
 
     # 1. System Settings Table
     cursor.execute("""

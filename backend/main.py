@@ -253,7 +253,7 @@ def get_overview_stats(election_id: Optional[str] = Query(None), current_admin: 
     cursor.execute("""
         SELECT 
             COUNT(*) as total,
-            SUM(CASE WHEN datetime(last_heartbeat_at) >= datetime('now', '-60 seconds') THEN 1 ELSE 0 END) as online,
+            SUM(CASE WHEN last_heartbeat_at >= datetime('now', '-60 seconds') THEN 1 ELSE 0 END) as online,
             SUM(CASE WHEN device_status = 'Maintenance' THEN 1 ELSE 0 END) as maintenance,
             SUM(CASE WHEN device_status = 'Error' THEN 1 ELSE 0 END) as error
         FROM terminals
@@ -654,7 +654,7 @@ def list_terminals(current_admin: dict = Depends(get_current_admin)):
     cursor = conn.cursor()
     cursor.execute("""
         SELECT t.*, e.title as election_title, p.name as polling_location_name,
-               (datetime(t.last_heartbeat_at) >= datetime('now', '-60 seconds')) as is_online
+               (t.last_heartbeat_at >= datetime('now', '-60 seconds')) as is_online
         FROM terminals t
         LEFT JOIN elections e ON t.assigned_election_id = e.id
         LEFT JOIN polling_locations p ON t.polling_location_id = p.id
