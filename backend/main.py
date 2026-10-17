@@ -1037,7 +1037,7 @@ def get_election_results(election_id: str, current_admin: dict = Depends(get_cur
 def get_audit_logs(
     severity: Optional[str] = Query(None),
     limit: int = 100,
-    current_admin: dict = Depends(require_roles(["System Administrator", "Auditor / Observer"]))
+    current_admin: dict = Depends(require_roles(["System Administrator", "Election Manager", "Auditor / Observer"]))
 ):
     conn = get_db()
     cursor = conn.cursor()

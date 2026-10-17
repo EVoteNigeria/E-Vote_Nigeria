@@ -1004,8 +1004,15 @@ async function showReportPreviewAndExport(contentHtml, title, filename) {
   }, 150);
 }
 
+let isGeneratingVoters = false;
+let isGeneratingResults = false;
+let isGeneratingAudit = false;
+
 // 1. VOTER REGISTER REPORT
 async function generateVotersReportPDF() {
+  if (isGeneratingVoters) return;
+  isGeneratingVoters = true;
+
   const triggerBtns = [
     document.getElementById('btn-export-voters-pdf'),
     document.getElementById('btn-report-voters')
@@ -1149,6 +1156,7 @@ async function generateVotersReportPDF() {
     console.error('Error generating Voter Register PDF:', err);
     alert('Failed to generate Voter Register PDF: ' + err.message);
   } finally {
+    isGeneratingVoters = false;
     triggerBtns.forEach(b => {
       b.disabled = false;
       if (b.id === 'btn-export-voters-pdf') b.innerHTML = '📄 Export Register (PDF)';
@@ -1159,6 +1167,9 @@ async function generateVotersReportPDF() {
 
 // 2. ELECTION RESULTS CERTIFICATE (FORM EC 8A)
 async function generateResultsCertificatePDF() {
+  if (isGeneratingResults) return;
+  isGeneratingResults = true;
+
   const triggerBtns = [
     document.getElementById('btn-export-results'),
     document.getElementById('btn-report-results')
@@ -1383,6 +1394,7 @@ async function generateResultsCertificatePDF() {
     console.error('Error generating Results Certificate PDF:', err);
     alert('Failed to generate Results Certificate: ' + err.message);
   } finally {
+    isGeneratingResults = false;
     triggerBtns.forEach(b => {
       b.disabled = false;
       if (b.id === 'btn-export-results') b.innerHTML = '&#128438; Export Certificate (PDF)';
@@ -1393,6 +1405,9 @@ async function generateResultsCertificatePDF() {
 
 // 3. AUDIT TRAIL REPORT
 async function generateAuditReportPDF() {
+  if (isGeneratingAudit) return;
+  isGeneratingAudit = true;
+
   const triggerBtns = [
     document.getElementById('btn-export-audit-pdf'),
     document.getElementById('btn-report-audit')
@@ -1403,38 +1418,63 @@ async function generateAuditReportPDF() {
   try {
     const [stats, logs] = await Promise.all([
       apiRequest('/api/v1/overview/stats').catch(() => ({})),
-      apiRequest('/api/v1/audit-logs?limit=500').catch(() => [])
+      apiRequest('/api/v1/audit-logs?limit=200').catch(() => [])
     ]);
 
-    const totalLogs = Array.isArray(logs) ? logs.length : 0;
+    let auditList = [];
+    if (Array.isArray(logs)) {
+      auditList = logs;
+    } else if (logs && Array.isArray(logs.logs)) {
+      auditList = logs.logs;
+    } else {
+      // Fallback: extract loaded rows from Security & Audit Logs table if available
+      const tableRows = document.querySelectorAll('#audit-table-body tr');
+      if (tableRows && tableRows.length > 0) {
+        tableRows.forEach(tr => {
+          const cells = tr.querySelectorAll('td');
+          if (cells.length >= 6) {
+            auditList.push({
+              event_timestamp: cells[0].textContent.trim(),
+              actor_type: cells[1].textContent.trim(),
+              event_type: cells[2].textContent.trim(),
+              result: cells[3].textContent.trim(),
+              severity: cells[4].textContent.trim(),
+              sanitized_description: cells[5].textContent.trim()
+            });
+          }
+        });
+      }
+    }
+
+    const totalLogs = auditList.length;
     const reportHash = generateReportHash('INEC-AUDIT');
     const generatedDate = formatReportDate();
 
     const auditRows = totalLogs === 0 ? `
       <tr>
-        <td colspan="6" style="padding: 16px; text-align: center; color: #6b7280; font-style: italic;">
+        <td colspan="7" style="padding: 16px; text-align: center; color: #6b7280; font-style: italic;">
           No audit event records captured.
         </td>
       </tr>
-    ` : logs.map((l, i) => {
-      const isSuccess = l.result === 'Success';
+    ` : auditList.map((l, i) => {
+      const isSuccess = l && l.result === 'Success';
       const resultBadge = isSuccess
         ? `<span style="background: #ecfdf5; color: #047857; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 9.5px; border: 1px solid #a7f3d0;">SUCCESS</span>`
-        : `<span style="background: #fef2f2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 9.5px; border: 1px solid #fecaca;">${l.result || 'FAILED'}</span>`;
+        : `<span style="background: #fef2f2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 9.5px; border: 1px solid #fecaca;">${(l && l.result) || 'FAILED'}</span>`;
 
-      const severityBadge = (l.severity === 'Critical' || l.severity === 'Security')
+      const severityBadge = (l && (l.severity === 'Critical' || l.severity === 'Security'))
         ? `<span style="background: #fef2f2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 9.5px;">${l.severity}</span>`
-        : `<span style="background: #f0fdf4; color: #166534; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 9.5px;">${l.severity || 'Info'}</span>`;
+        : `<span style="background: #f0fdf4; color: #166534; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 9.5px;">${(l && l.severity) || 'Info'}</span>`;
 
       return `
         <tr style="border-bottom: 1px solid #e5e7eb; font-size: 10px; ${i % 2 === 1 ? 'background: #f9fafb;' : ''}">
           <td style="padding: 6px 8px; text-align: center; font-weight: 600; color: #6b7280;">${i + 1}</td>
-          <td style="padding: 6px 8px; font-family: monospace; color: #374151; white-space: nowrap;">${l.event_timestamp}</td>
-          <td style="padding: 6px 8px; font-weight: 700; color: #111827;">${l.actor_type || 'SYSTEM'}</td>
-          <td style="padding: 6px 8px;"><code style="background: #f1f5f9; padding: 2px 4px; border-radius: 3px; font-size: 9.5px; font-weight: 600;">${l.event_type}</code></td>
+          <td style="padding: 6px 8px; font-family: monospace; color: #374151; white-space: nowrap;">${(l && l.event_timestamp) || '-'}</td>
+          <td style="padding: 6px 8px; font-weight: 700; color: #111827;">${(l && l.actor_type) || 'SYSTEM'}</td>
+          <td style="padding: 6px 8px;"><code style="background: #f1f5f9; padding: 2px 4px; border-radius: 3px; font-size: 9.5px; font-weight: 600;">${(l && l.event_type) || '-'}</code></td>
           <td style="padding: 6px 8px; text-align: center;">${resultBadge}</td>
           <td style="padding: 6px 8px; text-align: center;">${severityBadge}</td>
-          <td style="padding: 6px 8px; color: #374151;">${l.sanitized_description || '-'}</td>
+          <td style="padding: 6px 8px; color: #374151;">${(l && l.sanitized_description) || '-'}</td>
         </tr>
       `;
     }).join('');
@@ -1531,6 +1571,7 @@ async function generateAuditReportPDF() {
     console.error('Error generating Audit Report PDF:', err);
     alert('Failed to generate Audit Report: ' + err.message);
   } finally {
+    isGeneratingAudit = false;
     triggerBtns.forEach(b => {
       b.disabled = false;
       if (b.id === 'btn-export-audit-pdf') b.innerHTML = '📄 Export Audit Trail (PDF)';
