@@ -542,6 +542,59 @@ async def import_voters_csv(file: UploadFile = File(...), current_admin: dict = 
     log_audit_event("Administrator", "CSV_IMPORT_VOTERS", "Success", f"Imported {imported_count} voters, skipped {skipped_count}", actor_id=current_admin["id"])
     return {"imported": imported_count, "skipped": skipped_count}
 
+@app.delete("/api/v1/voters/{voter_id_or_uuid}")
+def delete_voter(voter_id_or_uuid: str, current_admin: dict = Depends(require_roles(["System Administrator", "Voter Registration Officer"]))):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM voters WHERE id = ? OR voter_id = ?", (voter_id_or_uuid, voter_id_or_uuid))
+    voter = cursor.fetchone()
+    if not voter:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Voter not found")
+
+    voter_uuid = voter["id"]
+    numeric_id = voter["voter_id"]
+    voter_name = voter["full_name"]
+
+    # Find affected terminals to recalculate their slot counts
+    cursor.execute("SELECT DISTINCT device_id FROM voter_fingerprint_mappings WHERE voter_id = ?", (voter_uuid,))
+    affected_terminals = [row["device_id"] for row in cursor.fetchall()]
+
+    # Remove biometric mappings and participation records
+    cursor.execute("DELETE FROM voter_fingerprint_mappings WHERE voter_id = ?", (voter_uuid,))
+    cursor.execute("DELETE FROM voter_participation WHERE voter_id = ?", (voter_uuid,))
+
+    # Delete voter
+    cursor.execute("DELETE FROM voters WHERE id = ?", (voter_uuid,))
+
+    # Update sensor slots used for all affected terminals
+    for dev_id in affected_terminals:
+        cursor.execute("""
+            UPDATE terminals SET sensor_slots_used = (
+                SELECT COUNT(*) FROM voter_fingerprint_mappings WHERE device_id = ? AND enrollment_status = 'Enrolled'
+            ) WHERE id = ? OR device_id = ?
+        """, (dev_id, dev_id, dev_id))
+
+    conn.commit()
+    conn.close()
+
+    log_audit_event(
+        "Administrator",
+        "DELETE_VOTER",
+        "Success",
+        f"Deleted voter {numeric_id} ({voter_name}) and associated biometric mappings",
+        actor_id=current_admin["id"],
+        target_type="Voter",
+        target_id=voter_uuid
+    )
+
+    return {
+        "message": f"Voter {numeric_id} ({voter_name}) deleted successfully",
+        "deleted_id": voter_uuid,
+        "voter_id": numeric_id
+    }
+
 # ----------------------------------------------------
 # 6. Fingerprint Enrollment Workflow
 # ----------------------------------------------------

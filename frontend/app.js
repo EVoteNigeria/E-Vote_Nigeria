@@ -374,6 +374,24 @@ window.deleteParty = async function(id) {
   loadParties();
 };
 
+window.deleteVoter = async function(id, voterId, voterName) {
+  if (!confirm(`Are you sure you want to permanently delete voter ${voterId} (${voterName})?\nThis will remove their registration and biometric slot mappings.`)) {
+    return;
+  }
+  try {
+    await apiRequest(`/api/v1/voters/${id}`, 'DELETE');
+    try {
+      const stored = JSON.parse(localStorage.getItem('evote_session_backup_voters') || '[]');
+      const filtered = stored.filter(v => v.id !== id && v.voter_id !== voterId);
+      localStorage.setItem('evote_session_backup_voters', JSON.stringify(filtered));
+    } catch (e) {}
+    loadVoters();
+    loadOverview();
+  } catch (err) {
+    alert('Failed to delete voter: ' + (err.message || err));
+  }
+};
+
 // 4. Voter Registry
 async function loadVoters(searchQuery = '') {
   const url = searchQuery ? `/api/v1/voters?search=${encodeURIComponent(searchQuery)}` : '/api/v1/voters';
@@ -399,6 +417,7 @@ async function loadVoters(searchQuery = '') {
         <div style="display: flex; gap: 6px;">
           <button onclick="triggerEnrollFor('${v.id}')" class="btn btn-secondary btn-sm" title="Queue hardware fingerprint scan on ESP32">&#9757; Enroll</button>
           <button onclick="openMapSlotModal('${v.id}', '${v.voter_id}', '${safeName}')" class="btn btn-secondary btn-sm" title="Directly link to existing AS608 hardware slot without re-scanning">&#128279; Link Slot</button>
+          <button onclick="deleteVoter('${v.id}', '${v.voter_id}', '${safeName}')" class="btn btn-danger btn-sm" title="Permanently delete voter record">&#128465; Delete</button>
         </div>
       </td>
     `;
