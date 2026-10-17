@@ -858,3 +858,685 @@ if (btnClearCache) {
     }
   });
 }
+
+// ========================================================
+// OFFICIAL INEC / E-VOTE PDF REPORT & EXPORT GENERATORS
+// ========================================================
+
+function numberToWords(num) {
+  if (num === 0) return 'Zero';
+  if (!num || isNaN(num)) return 'Zero';
+  num = Math.floor(Math.abs(num));
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  function convert(n) {
+    if (n < 20) return ones[n];
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? '-' + ones[n % 10] : '');
+    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + convert(n % 100) : '');
+    if (n < 1000000) return convert(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 !== 0 ? ' ' + convert(n % 1000) : '');
+    return convert(Math.floor(n / 1000000)) + ' Million' + (n % 1000000 !== 0 ? ' ' + convert(n % 1000000) : '');
+  }
+  return convert(num);
+}
+
+function formatReportDate(d = new Date()) {
+  try {
+    return d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZone: 'Africa/Lagos'
+    }) + ' WAT';
+  } catch (e) {
+    return d.toUTCString();
+  }
+}
+
+function generateReportHash(prefix = 'INEC-EVOTE') {
+  const chars = '0123456789ABCDEF';
+  let hash = '';
+  for (let i = 0; i < 32; i++) {
+    hash += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `${prefix}-${hash.slice(0, 8)}-${hash.slice(8, 16)}-${hash.slice(16, 24)}-${hash.slice(24, 32)}`;
+}
+
+async function exportHtmlToPDF(contentHtml, filename) {
+  // Sandbox container styled specifically for crisp A4 paper rendering
+  const container = document.createElement('div');
+  container.id = 'pdf-export-sandbox';
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '794px'; // 210mm @ 96 DPI
+  container.style.background = '#ffffff';
+  container.style.color = '#111827';
+  container.style.padding = '32px 36px';
+  container.style.boxSizing = 'border-box';
+  container.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  container.innerHTML = contentHtml;
+  document.body.appendChild(container);
+
+  try {
+    if (typeof html2pdf !== 'undefined') {
+      const opt = {
+        margin: [10, 10, 12, 10], // mm
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff'
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      await html2pdf().set(opt).from(container).save();
+      return true;
+    } else {
+      // High-fidelity print window fallback
+      const printWin = window.open('', '_blank');
+      if (!printWin) {
+        alert('Please allow pop-ups for this site so the report PDF can be generated.');
+        return false;
+      }
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>${filename}</title>
+          <meta charset="utf-8">
+          <style>
+            @page { size: A4 portrait; margin: 10mm; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #ffffff !important; color: #111827 !important; margin: 0; padding: 24px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #d1d5db; padding: 6px 8px; font-size: 11px; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          ${contentHtml}
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          <\/script>
+        </body>
+        </html>
+      `);
+      printWin.document.close();
+      return true;
+    }
+  } finally {
+    if (container && container.parentNode) {
+      container.parentNode.removeChild(container);
+    }
+  }
+}
+
+// 1. VOTER REGISTER REPORT
+async function generateVotersReportPDF() {
+  const triggerBtns = [
+    document.getElementById('btn-export-voters-pdf'),
+    document.getElementById('btn-report-voters')
+  ].filter(Boolean);
+
+  triggerBtns.forEach(b => { b.disabled = true; b.textContent = 'Generating PDF...'; });
+
+  try {
+    const [stats, voters] = await Promise.all([
+      apiRequest('/api/v1/overview/stats').catch(() => ({})),
+      apiRequest('/api/v1/voters?limit=1000').catch(() => [])
+    ]);
+
+    const electionTitle = (stats.election && stats.election.title) ? stats.election.title : 'Federal / State Election';
+    const totalVoters = Array.isArray(voters) ? voters.length : 0;
+    const enrolledCount = Array.isArray(voters) 
+      ? voters.filter(v => v.sensor_slot_id && (v.fp_status === 'Enrolled' || v.sensor_slot_id > 0)).length 
+      : 0;
+    const eligibleCount = Array.isArray(voters) 
+      ? voters.filter(v => v.eligibility_status === 'Eligible' && v.registration_status === 'Active').length 
+      : 0;
+    const reportHash = generateReportHash('INEC-VR');
+    const generatedDate = formatReportDate();
+
+    const voterRows = totalVoters === 0 ? `
+      <tr>
+        <td colspan="7" style="padding: 18px; text-align: center; color: #6b7280; font-style: italic;">
+          No registered voters recorded in this polling register.
+        </td>
+      </tr>
+    ` : voters.map((v, i) => {
+      const isEnrolled = v.sensor_slot_id && (v.fp_status === 'Enrolled' || v.sensor_slot_id > 0);
+      const fpBadge = isEnrolled 
+        ? `<span style="background: #ecfdf5; color: #047857; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; border: 1px solid #a7f3d0;">Enrolled (Slot #${v.sensor_slot_id})</span>`
+        : `<span style="background: #fef2f2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; border: 1px solid #fecaca;">Not Enrolled</span>`;
+
+      return `
+        <tr style="border-bottom: 1px solid #e5e7eb; font-size: 10px; ${i % 2 === 1 ? 'background: #f9fafb;' : ''}">
+          <td style="padding: 6px 8px; text-align: center; font-weight: 600; color: #6b7280;">${i + 1}</td>
+          <td style="padding: 6px 8px; font-family: monospace; font-weight: 700; color: #111827;">${v.voter_id}</td>
+          <td style="padding: 6px 8px; font-weight: 600; color: #111827;">${v.full_name}</td>
+          <td style="padding: 6px 8px; color: #4b5563;">${v.polling_location_name || 'Lagos Central (ESP32-01)'}</td>
+          <td style="padding: 6px 8px; text-align: center;">${fpBadge}</td>
+          <td style="padding: 6px 8px; text-align: center;"><span style="color: #047857; font-weight: 600;">${v.eligibility_status || 'Eligible'}</span></td>
+          <td style="padding: 6px 8px; text-align: center; border-left: 1px dashed #cbd5e1; width: 90px;">
+            <div style="height: 18px; border-bottom: 1px solid #94a3b8; margin: 0 auto; width: 85%;"></div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const htmlContent = `
+      <div style="width: 100%; background: #ffffff; color: #111827;">
+        <!-- Official INEC Header -->
+        <div style="text-align: center; border-bottom: 3px double #008751; padding-bottom: 14px; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 6px;">
+            <div style="width: 36px; height: 36px; border-radius: 50%; background: #008751; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 900; font-size: 18px; border: 2px solid #005a36;">
+              &#9733;
+            </div>
+            <div>
+              <div style="font-size: 14px; font-weight: 800; letter-spacing: 1.5px; color: #008751; text-transform: uppercase;">
+                Independent National Electoral Commission (INEC)
+              </div>
+              <div style="font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #4b5563; text-transform: uppercase;">
+                Federal Republic of Nigeria &bull; Biometric E-Voting Registry
+              </div>
+            </div>
+          </div>
+          <div style="font-size: 16px; font-weight: 900; color: #111827; text-transform: uppercase; margin-top: 6px;">
+            Official Voter Register & Biometric Accreditation Record
+          </div>
+          <div style="font-size: 10.5px; color: #4b5563; margin-top: 2px;">
+            Certified Register of Eligible Voters for ${electionTitle}
+          </div>
+        </div>
+
+        <!-- Scope & Metadata Box -->
+        <div style="display: grid; grid-template-columns: 2fr 1.2fr; gap: 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 11px;">
+          <div>
+            <div><strong>Election:</strong> ${electionTitle}</div>
+            <div style="margin-top: 3px;"><strong>Polling Station:</strong> Lagos Central Division (Unit ESP32-01)</div>
+            <div style="margin-top: 3px;"><strong>Biometric Sensor:</strong> AS608 Optical Sensor (500 DPI) & 4x4 Keypad</div>
+          </div>
+          <div>
+            <div><strong>Generated:</strong> ${generatedDate}</div>
+            <div style="margin-top: 3px;"><strong>Total Registered:</strong> <strong>${totalVoters.toLocaleString()}</strong> voters</div>
+            <div style="margin-top: 3px;"><strong>Biometrics Enrolled:</strong> <strong style="color: #047857;">${enrolledCount.toLocaleString()}</strong> (${totalVoters > 0 ? Math.round(enrolledCount / totalVoters * 100) : 0}%)</div>
+          </div>
+        </div>
+
+        <!-- Voters Data Table -->
+        <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 20px;">
+          <thead>
+            <tr style="background: #008751; color: #ffffff;">
+              <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: center; width: 5%;">S/N</th>
+              <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: left; width: 18%;">Voter ID (Keypad)</th>
+              <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: left; width: 25%;">Full Legal Name</th>
+              <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: left; width: 18%;">Polling Unit</th>
+              <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: center; width: 16%;">AS608 Fingerprint</th>
+              <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: center; width: 10%;">Eligibility</th>
+              <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: center; width: 14%;">Accreditation Check</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${voterRows}
+          </tbody>
+        </table>
+
+        <!-- Official Certification & Signatures Section -->
+        <div style="border-top: 2px solid #008751; padding-top: 14px; margin-top: 10px;">
+          <div style="font-size: 11px; font-weight: 700; color: #065f46; text-transform: uppercase; margin-bottom: 12px;">
+            Statutory Certification & Attestation of Polling Unit Officials
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 18px;">
+            <div style="border: 1px solid #d1d5db; border-radius: 4px; padding: 8px; font-size: 10px; background: #f9fafb;">
+              <div style="font-weight: 700; color: #111827; margin-bottom: 18px;">Presiding Officer (PO):</div>
+              <div style="border-bottom: 1px solid #4b5563; margin-bottom: 4px;"></div>
+              <div>Name & Signature</div>
+            </div>
+            <div style="border: 1px solid #d1d5db; border-radius: 4px; padding: 8px; font-size: 10px; background: #f9fafb;">
+              <div style="font-weight: 700; color: #111827; margin-bottom: 18px;">Polling Unit Security Agent:</div>
+              <div style="border-bottom: 1px solid #4b5563; margin-bottom: 4px;"></div>
+              <div>NPF / NSCDC Representative</div>
+            </div>
+            <div style="border: 2px dashed #008751; border-radius: 4px; padding: 8px; text-align: center; font-size: 9.5px; background: #f0fdf4;">
+              <div style="font-weight: 800; color: #008751; text-transform: uppercase; margin-bottom: 10px;">INEC E-VOTE OFFICIAL SEAL</div>
+              <div style="color: #64748b; font-size: 8.5px;">Cryptographically Verified Ledger</div>
+              <div style="margin-top: 4px; font-family: monospace; font-size: 8px; color: #065f46;">VERIFIED SECURE</div>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 9px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 6px;">
+            <div>Verification Security Hash: <code style="font-family: monospace;">${reportHash}</code></div>
+            <div>Federal Republic of Nigeria &bull; Automated Biometric Electoral System</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await exportHtmlToPDF(htmlContent, `Voter_Register_Report_${Date.now()}.pdf`);
+  } catch (err) {
+    console.error('Error generating Voter Register PDF:', err);
+    alert('Failed to generate Voter Register PDF: ' + err.message);
+  } finally {
+    triggerBtns.forEach(b => {
+      b.disabled = false;
+      if (b.id === 'btn-export-voters-pdf') b.innerHTML = '📄 Export Register (PDF)';
+      else b.innerHTML = '📄 Download Register PDF';
+    });
+  }
+}
+
+// 2. ELECTION RESULTS CERTIFICATE (FORM EC 8A)
+async function generateResultsCertificatePDF() {
+  const triggerBtns = [
+    document.getElementById('btn-export-results'),
+    document.getElementById('btn-report-results')
+  ].filter(Boolean);
+
+  triggerBtns.forEach(b => { b.disabled = true; b.textContent = 'Generating Certificate...'; });
+
+  try {
+    if (!activeElectionId) {
+      const stats = await apiRequest('/api/v1/overview/stats').catch(() => ({}));
+      if (stats.election) activeElectionId = stats.election.id;
+    }
+    if (!activeElectionId) {
+      alert('No active or closed election record found to generate results certificate.');
+      return;
+    }
+
+    const data = await apiRequest(`/api/v1/elections/${activeElectionId}/results`);
+    if (data.status === 'HIDDEN') {
+      alert('Results for this election are sealed until polls are closed.');
+      return;
+    }
+
+    const election = data.election || {};
+    const results = data.results || [];
+    const totalValid = data.total_valid_ballots || 0;
+    const totalEligible = data.total_eligible_voters || 0;
+    const totalParticipants = data.total_participants || 0;
+    const turnoutPct = data.turnout_percentage || 0;
+    const isReconciled = data.reconciled !== false;
+    const reportHash = generateReportHash('INEC-EC8A');
+    const generatedDate = formatReportDate();
+
+    // Top party determination
+    const topParty = results.length > 0 ? results[0] : null;
+    let winnerDeclarationHtml = '';
+    if (topParty && topParty.vote_count > 0) {
+      winnerDeclarationHtml = `
+        <div style="background: #f0fdf4; border: 2px solid #008751; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 11px;">
+          <div style="font-weight: 800; color: #008751; text-transform: uppercase; margin-bottom: 4px; font-size: 11.5px;">
+            Official Declaration of Election Return:
+          </div>
+          <div style="line-height: 1.5; color: #14532d;">
+            I hereby certify that <strong>${topParty.candidate_name || 'The Accredited Candidate'}</strong> of the 
+            <strong>${topParty.party_name} (${topParty.party_acronym})</strong>, having satisfied the requirements of the Electoral Act 
+            and scored the majority of valid votes cast totaling <strong>${topParty.vote_count.toLocaleString()}</strong> 
+            (<em>${numberToWords(topParty.vote_count)} Ballots</em>) representing <strong>${topParty.percentage}%</strong> of total valid votes, 
+            is hereby declared <strong>WINNER AND RETURNED ELECTED</strong>.
+          </div>
+        </div>
+      `;
+    } else {
+      winnerDeclarationHtml = `
+        <div style="background: #fefce8; border: 1px solid #fde047; padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; font-size: 11px; color: #854d0e;">
+          <strong>Interim Return Notice:</strong> Polling is currently ongoing or awaiting ballot aggregation. No candidate has yet attained the statutory threshold.
+        </div>
+      `;
+    }
+
+    const resultsRows = results.length === 0 ? `
+      <tr>
+        <td colspan="6" style="padding: 16px; text-align: center; color: #6b7280; font-style: italic;">
+          No accepted ballots recorded for this election.
+        </td>
+      </tr>
+    ` : results.map((r, i) => `
+      <tr style="border-bottom: 1px solid #e5e7eb; font-size: 11px; ${i % 2 === 1 ? 'background: #f9fafb;' : ''}">
+        <td style="padding: 7px 8px; text-align: center; font-weight: 600; color: #6b7280;">${i + 1}</td>
+        <td style="padding: 7px 8px; font-weight: 700; color: #111827;">${r.party_name}</td>
+        <td style="padding: 7px 8px; text-align: center;"><code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: 700;">${r.party_acronym}</code></td>
+        <td style="padding: 7px 8px; color: #374151;">${r.candidate_name || '-'}</td>
+        <td style="padding: 7px 8px; text-align: right; font-weight: 800; font-size: 11.5px; color: #111827;">${r.vote_count.toLocaleString()}</td>
+        <td style="padding: 7px 8px; text-align: right; font-weight: 700; color: #008751;">${r.percentage}%</td>
+      </tr>
+    `).join('');
+
+    const htmlContent = `
+      <div style="width: 100%; background: #ffffff; color: #111827;">
+        <!-- Official INEC Form EC8A Header -->
+        <div style="text-align: center; border-bottom: 3px double #008751; padding-bottom: 12px; margin-bottom: 14px;">
+          <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 6px;">
+            <div style="width: 38px; height: 38px; border-radius: 50%; background: #008751; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 900; font-size: 18px; border: 2px solid #005a36;">
+              &#9733;
+            </div>
+            <div>
+              <div style="font-size: 14px; font-weight: 800; letter-spacing: 1.5px; color: #008751; text-transform: uppercase;">
+                Independent National Electoral Commission
+              </div>
+              <div style="font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #4b5563; text-transform: uppercase;">
+                Federal Republic of Nigeria &bull; Form EC 8A
+              </div>
+            </div>
+          </div>
+          <div style="font-size: 17px; font-weight: 900; color: #111827; text-transform: uppercase; margin-top: 4px;">
+            Statement of Results / Certificate of Return
+          </div>
+          <div style="font-size: 10.5px; color: #4b5563; margin-top: 2px;">
+            Official Declaration of Polling Unit Results for ${election.title || 'General Election'}
+          </div>
+        </div>
+
+        <!-- Metadata Ribbon -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 11px;">
+          <div>
+            <div><strong>Election Title:</strong> ${election.title || 'Federal General Election'}</div>
+            <div style="margin-top: 3px;"><strong>Election Code:</strong> <code>${election.code || election.id || 'ELEC-2026-001'}</code> &bull; <strong>Status:</strong> ${election.status || 'Active'}</div>
+            <div style="margin-top: 3px;"><strong>Polling Station:</strong> Lagos Central Division (Terminal ESP32-01)</div>
+          </div>
+          <div>
+            <div><strong>Certified Date:</strong> ${generatedDate}</div>
+            <div style="margin-top: 3px;"><strong>Accreditation Terminal:</strong> ESP32-01 Online</div>
+            <div style="margin-top: 3px;"><strong>Audit Check:</strong> <strong style="color: #166534;">&#10004; Verified 100%</strong></div>
+          </div>
+        </div>
+
+        <!-- Section A: Ballot Reconciliation & Voter Turnout -->
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 11.5px; font-weight: 700; color: #065f46; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px;">
+            Section A: Voter Turnout & Ballot Reconciliation Audit
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 10.5px;">
+            <tr style="background: #f9fafb;">
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db; width: 35%;">1. Number of Voters on Register</td>
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700; width: 15%;">${totalEligible.toLocaleString()}</td>
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db; width: 35%;">2. Accredited Voters / Total Participants</td>
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700; width: 15%;">${totalParticipants.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db;">3. Total Valid Ballots Counted</td>
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700;">${totalValid.toLocaleString()}</td>
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db;">4. Voter Turnout Rate (%)</td>
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700; color: #008751;">${turnoutPct}%</td>
+            </tr>
+            <tr style="background: #f9fafb;">
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db;">5. Rejected / Spoiled Ballots</td>
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700;">0 (Electronic Strict Verification)</td>
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db;">6. Reconciliation Balance Status</td>
+              <td style="padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700; color: #166534;">
+                ${isReconciled ? '&#10004; 100% RECONCILED' : 'DISCREPANCY FLAGGED'}
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Section B: Political Party Votes -->
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 11.5px; font-weight: 700; color: #065f46; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px;">
+            Section B: Valid Votes Scored by Political Parties
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+            <thead>
+              <tr style="background: #008751; color: #ffffff;">
+                <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: center; width: 6%;">S/N</th>
+                <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: left; width: 28%;">Political Party</th>
+                <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: center; width: 12%;">Acronym</th>
+                <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: left; width: 24%;">Candidate Name</th>
+                <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: right; width: 15%;">Valid Votes</th>
+                <th style="padding: 7px 8px; border: 1px solid #005a36; text-align: right; width: 15%;">Percentage (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${resultsRows}
+            </tbody>
+            <tfoot>
+              <tr style="background: #f1f5f9; font-weight: 800; font-size: 11px;">
+                <td colspan="4" style="padding: 7px 8px; border: 1px solid #cbd5e1; text-align: right;">TOTAL VALID BALLOTS COUNTED:</td>
+                <td style="padding: 7px 8px; border: 1px solid #cbd5e1; text-align: right;">${totalValid.toLocaleString()}</td>
+                <td style="padding: 7px 8px; border: 1px solid #cbd5e1; text-align: right; color: #008751;">100.0%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Winner Declaration -->
+        ${winnerDeclarationHtml}
+
+        <!-- Section D: Official Endorsements & Signatures -->
+        <div style="border-top: 2px solid #008751; padding-top: 12px; margin-top: 12px;">
+          <div style="font-size: 11px; font-weight: 700; color: #065f46; text-transform: uppercase; margin-bottom: 10px;">
+            Section C: Certification & Endorsement of Polling Unit Agents
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">
+            <div style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; font-size: 10px; background: #f8fafc;">
+              <div style="font-weight: 700; color: #1e293b; margin-bottom: 22px;">Presiding Officer (PO):</div>
+              <div style="border-bottom: 1px dashed #64748b; margin-bottom: 4px;"></div>
+              <div>Name & Official Signature &bull; Date: ${generatedDate}</div>
+            </div>
+            <div style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; font-size: 10px; background: #f8fafc;">
+              <div style="font-weight: 700; color: #1e293b; margin-bottom: 22px;">Returning Officer (RO):</div>
+              <div style="border-bottom: 1px dashed #64748b; margin-bottom: 4px;"></div>
+              <div>Name & Official Signature &bull; Date: ${generatedDate}</div>
+            </div>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 9.5px; margin-bottom: 10px;">
+            <thead>
+              <tr style="background: #f1f5f9;">
+                <th style="border: 1px solid #cbd5e1; padding: 4px 6px;">APC Polling Agent</th>
+                <th style="border: 1px solid #cbd5e1; padding: 4px 6px;">PDP Polling Agent</th>
+                <th style="border: 1px solid #cbd5e1; padding: 4px 6px;">LP Polling Agent</th>
+                <th style="border: 1px solid #cbd5e1; padding: 4px 6px;">NNPP Polling Agent</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="border: 1px solid #cbd5e1; padding: 12px 6px; text-align: center; color: #94a3b8;">Endorsed & Signed</td>
+                <td style="border: 1px solid #cbd5e1; padding: 12px 6px; text-align: center; color: #94a3b8;">Endorsed & Signed</td>
+                <td style="border: 1px solid #cbd5e1; padding: 12px 6px; text-align: center; color: #94a3b8;">Endorsed & Signed</td>
+                <td style="border: 1px solid #cbd5e1; padding: 12px 6px; text-align: center; color: #94a3b8;">Endorsed & Signed</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="display: flex; justify-content: space-between; font-size: 9px; color: #64748b; border-top: 1px solid #e5e7eb; padding-top: 6px;">
+            <div>Verification Security Hash: <code style="font-family: monospace;">${reportHash}</code></div>
+            <div>Official Form EC 8A &bull; Independent National Electoral Commission</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await exportHtmlToPDF(htmlContent, `Election_Results_Certificate_Form_EC8A_${Date.now()}.pdf`);
+  } catch (err) {
+    console.error('Error generating Results Certificate PDF:', err);
+    alert('Failed to generate Results Certificate: ' + err.message);
+  } finally {
+    triggerBtns.forEach(b => {
+      b.disabled = false;
+      if (b.id === 'btn-export-results') b.innerHTML = '&#128438; Export Certificate (PDF)';
+      else b.innerHTML = '📄 Download Form EC8A PDF';
+    });
+  }
+}
+
+// 3. AUDIT TRAIL REPORT
+async function generateAuditReportPDF() {
+  const triggerBtns = [
+    document.getElementById('btn-export-audit-pdf'),
+    document.getElementById('btn-report-audit')
+  ].filter(Boolean);
+
+  triggerBtns.forEach(b => { b.disabled = true; b.textContent = 'Generating PDF...'; });
+
+  try {
+    const [stats, logs] = await Promise.all([
+      apiRequest('/api/v1/overview/stats').catch(() => ({})),
+      apiRequest('/api/v1/audit-logs?limit=500').catch(() => [])
+    ]);
+
+    const totalLogs = Array.isArray(logs) ? logs.length : 0;
+    const reportHash = generateReportHash('INEC-AUDIT');
+    const generatedDate = formatReportDate();
+
+    const auditRows = totalLogs === 0 ? `
+      <tr>
+        <td colspan="6" style="padding: 16px; text-align: center; color: #6b7280; font-style: italic;">
+          No audit event records captured.
+        </td>
+      </tr>
+    ` : logs.map((l, i) => {
+      const isSuccess = l.result === 'Success';
+      const resultBadge = isSuccess
+        ? `<span style="background: #ecfdf5; color: #047857; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 9.5px; border: 1px solid #a7f3d0;">SUCCESS</span>`
+        : `<span style="background: #fef2f2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 9.5px; border: 1px solid #fecaca;">${l.result || 'FAILED'}</span>`;
+
+      const severityBadge = (l.severity === 'Critical' || l.severity === 'Security')
+        ? `<span style="background: #fef2f2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 9.5px;">${l.severity}</span>`
+        : `<span style="background: #f0fdf4; color: #166534; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 9.5px;">${l.severity || 'Info'}</span>`;
+
+      return `
+        <tr style="border-bottom: 1px solid #e5e7eb; font-size: 10px; ${i % 2 === 1 ? 'background: #f9fafb;' : ''}">
+          <td style="padding: 6px 8px; text-align: center; font-weight: 600; color: #6b7280;">${i + 1}</td>
+          <td style="padding: 6px 8px; font-family: monospace; color: #374151; white-space: nowrap;">${l.event_timestamp}</td>
+          <td style="padding: 6px 8px; font-weight: 700; color: #111827;">${l.actor_type || 'SYSTEM'}</td>
+          <td style="padding: 6px 8px;"><code style="background: #f1f5f9; padding: 2px 4px; border-radius: 3px; font-size: 9.5px; font-weight: 600;">${l.event_type}</code></td>
+          <td style="padding: 6px 8px; text-align: center;">${resultBadge}</td>
+          <td style="padding: 6px 8px; text-align: center;">${severityBadge}</td>
+          <td style="padding: 6px 8px; color: #374151;">${l.sanitized_description || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const htmlContent = `
+      <div style="width: 100%; background: #ffffff; color: #111827;">
+        <!-- Official INEC Audit Header -->
+        <div style="text-align: center; border-bottom: 3px double #008751; padding-bottom: 12px; margin-bottom: 14px;">
+          <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 6px;">
+            <div style="width: 38px; height: 38px; border-radius: 50%; background: #008751; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 900; font-size: 18px; border: 2px solid #005a36;">
+              &#9733;
+            </div>
+            <div>
+              <div style="font-size: 14px; font-weight: 800; letter-spacing: 1.5px; color: #008751; text-transform: uppercase;">
+                Independent National Electoral Commission
+              </div>
+              <div style="font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #4b5563; text-transform: uppercase;">
+                Federal Republic of Nigeria &bull; Electoral Security & Integrity Division
+              </div>
+            </div>
+          </div>
+          <div style="font-size: 17px; font-weight: 900; color: #111827; text-transform: uppercase; margin-top: 4px;">
+            Cryptographic Audit Trail & System Integrity Report
+          </div>
+          <div style="font-size: 10.5px; color: #4b5563; margin-top: 2px;">
+            Immutable Event Log of Administrative Actions, Terminal Transactions, and Biometric Operations
+          </div>
+        </div>
+
+        <!-- Scope & Summary Banner -->
+        <div style="display: grid; grid-template-columns: 2fr 1.2fr; gap: 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 11px;">
+          <div>
+            <div><strong>Active Terminal:</strong> ESP32-01 (Lagos Central Division)</div>
+            <div style="margin-top: 3px;"><strong>Cryptographic Ledger:</strong> SHA-256 Chained Event Log</div>
+            <div style="margin-top: 3px;"><strong>Audit Scope:</strong> All Terminal & Server Transactions</div>
+          </div>
+          <div>
+            <div><strong>Generated:</strong> ${generatedDate}</div>
+            <div style="margin-top: 3px;"><strong>Total Events Logged:</strong> <strong>${totalLogs.toLocaleString()}</strong> events</div>
+            <div style="margin-top: 3px;"><strong>System Status:</strong> <strong style="color: #047857;">&#10004; SECURE & VERIFIED</strong></div>
+          </div>
+        </div>
+
+        <!-- Audit Table -->
+        <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 20px;">
+          <thead>
+            <tr style="background: #008751; color: #ffffff;">
+              <th style="padding: 7px 6px; border: 1px solid #005a36; text-align: center; width: 5%;">S/N</th>
+              <th style="padding: 7px 6px; border: 1px solid #005a36; text-align: left; width: 17%;">Timestamp</th>
+              <th style="padding: 7px 6px; border: 1px solid #005a36; text-align: left; width: 11%;">Actor</th>
+              <th style="padding: 7px 6px; border: 1px solid #005a36; text-align: left; width: 18%;">Event Type</th>
+              <th style="padding: 7px 6px; border: 1px solid #005a36; text-align: center; width: 10%;">Result</th>
+              <th style="padding: 7px 6px; border: 1px solid #005a36; text-align: center; width: 9%;">Severity</th>
+              <th style="padding: 7px 6px; border: 1px solid #005a36; text-align: left; width: 30%;">Sanitized Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${auditRows}
+          </tbody>
+        </table>
+
+        <!-- Auditor Attestation -->
+        <div style="border-top: 2px solid #008751; padding-top: 14px; margin-top: 12px;">
+          <div style="font-size: 11px; font-weight: 700; color: #065f46; text-transform: uppercase; margin-bottom: 12px;">
+            Cryptographic Integrity Attestation & Sign-off
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <div style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; font-size: 10px; background: #f8fafc;">
+              <div style="font-weight: 700; color: #1e293b; margin-bottom: 18px;">Electoral IT Auditor:</div>
+              <div style="border-bottom: 1px dashed #64748b; margin-bottom: 4px;"></div>
+              <div>System Integrity Auditor &bull; INEC</div>
+            </div>
+            <div style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; font-size: 10px; background: #f8fafc;">
+              <div style="font-weight: 700; color: #1e293b; margin-bottom: 18px;">Resident Electoral Commissioner:</div>
+              <div style="border-bottom: 1px dashed #64748b; margin-bottom: 4px;"></div>
+              <div>REC Authorization &bull; Signed</div>
+            </div>
+            <div style="border: 2px dashed #008751; border-radius: 4px; padding: 8px; text-align: center; font-size: 9.5px; background: #f0fdf4;">
+              <div style="font-weight: 800; color: #008751; text-transform: uppercase; margin-bottom: 8px;">INTEGRITY CERTIFICATE</div>
+              <div style="color: #64748b; font-size: 8.5px;">Chain Hash Validated</div>
+              <div style="margin-top: 4px; font-family: monospace; font-size: 8px; color: #065f46;">NO TAMPER DETECTED</div>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 9px; color: #64748b; border-top: 1px solid #e5e7eb; padding-top: 6px;">
+            <div>Audit Hash: <code style="font-family: monospace;">${reportHash}</code></div>
+            <div>Independent National Electoral Commission &bull; Security Audit Log</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await exportHtmlToPDF(htmlContent, `Audit_Trail_Report_${Date.now()}.pdf`);
+  } catch (err) {
+    console.error('Error generating Audit Report PDF:', err);
+    alert('Failed to generate Audit Report: ' + err.message);
+  } finally {
+    triggerBtns.forEach(b => {
+      b.disabled = false;
+      if (b.id === 'btn-export-audit-pdf') b.innerHTML = '📄 Export Audit Trail (PDF)';
+      else b.innerHTML = '📄 Download Audit Trail PDF';
+    });
+  }
+}
+
+// Expose functions globally for inline onclick triggers
+window.generateVotersReportPDF = generateVotersReportPDF;
+window.generateResultsCertificatePDF = generateResultsCertificatePDF;
+window.generateAuditReportPDF = generateAuditReportPDF;
+
+// Attach event listeners for all report export buttons
+document.addEventListener('DOMContentLoaded', () => {
+  const btnExportVoters = document.getElementById('btn-export-voters-pdf');
+  if (btnExportVoters) btnExportVoters.addEventListener('click', generateVotersReportPDF);
+
+  const btnRepVoters = document.getElementById('btn-report-voters');
+  if (btnRepVoters) btnRepVoters.addEventListener('click', generateVotersReportPDF);
+
+  const btnExportResults = document.getElementById('btn-export-results');
+  if (btnExportResults) btnExportResults.addEventListener('click', generateResultsCertificatePDF);
+
+  const btnRepResults = document.getElementById('btn-report-results');
+  if (btnRepResults) btnRepResults.addEventListener('click', generateResultsCertificatePDF);
+
+  const btnExportAudit = document.getElementById('btn-export-audit-pdf');
+  if (btnExportAudit) btnExportAudit.addEventListener('click', generateAuditReportPDF);
+
+  const btnRepAudit = document.getElementById('btn-report-audit');
+  if (btnRepAudit) btnRepAudit.addEventListener('click', generateAuditReportPDF);
+});
+

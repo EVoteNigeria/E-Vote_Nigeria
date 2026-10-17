@@ -514,7 +514,8 @@
               <h1 class="page-title">Voter Registry</h1>
               <p style="color: var(--text-muted); font-size: 0.88rem;">Manage eligible voters and biometric enrollment records.</p>
             </div>
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button id="btn-export-voters-pdf" class="btn btn-secondary" onclick="generateVotersReportPDF()">📄 Export Register (PDF)</button>
               <button id="btn-import-csv" class="btn btn-secondary">&#8679; Import CSV Register</button>
               <button id="btn-add-voter" class="btn btn-primary">+ Register New Voter</button>
             </div>
@@ -661,7 +662,7 @@
               <h1 class="page-title">Certified Election Results</h1>
               <p style="color: var(--text-muted); font-size: 0.88rem;">Aggregated party counts and ballot certification.</p>
             </div>
-            <button id="btn-export-results" class="btn btn-secondary">&#128438; Print / Export Results</button>
+            <button id="btn-export-results" class="btn btn-secondary" onclick="generateResultsCertificatePDF()">&#128438; Export Certificate (PDF)</button>
           </div>
 
           <div class="card" id="results-display-card">
@@ -699,27 +700,30 @@
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
             <div class="card">
               <div class="card-title" style="margin-bottom: 8px;">Voter Register Report</div>
-              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">Complete listing of registered voters, eligibility status, and enrollment status.</p>
-              <button onclick="window.print()" class="btn btn-secondary btn-sm">Print / Save PDF</button>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">Complete listing of registered voters, eligibility status, polling units, and AS608 biometric enrollment status.</p>
+              <button id="btn-report-voters" onclick="generateVotersReportPDF()" class="btn btn-primary btn-sm">📄 Download Register PDF</button>
             </div>
             <div class="card">
               <div class="card-title" style="margin-bottom: 8px;">Audit Trail Report</div>
-              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">Comprehensive log of administrative actions, terminal events, and security logs.</p>
-              <button onclick="window.print()" class="btn btn-secondary btn-sm">Print / Save PDF</button>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">Comprehensive log of administrative actions, terminal biometric events, and cryptographic audit records.</p>
+              <button id="btn-report-audit" onclick="generateAuditReportPDF()" class="btn btn-primary btn-sm">📄 Download Audit Trail PDF</button>
             </div>
             <div class="card">
               <div class="card-title" style="margin-bottom: 8px;">Election Results Certificate</div>
-              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">Official aggregate party totals signed and reconciled with voter turnout.</p>
-              <button onclick="window.print()" class="btn btn-secondary btn-sm">Print / Save PDF</button>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">Official INEC Form EC 8A Certificate of Return with aggregate party totals, ballot reconciliation, and winner declaration.</p>
+              <button id="btn-report-results" onclick="generateResultsCertificatePDF()" class="btn btn-primary btn-sm">📄 Download Form EC8A PDF</button>
             </div>
           </div>
         </section>
 
         <!-- PAGE 10: AUDIT LOGS -->
         <section id="page-audit" class="page-view" style="display: none;">
-          <div style="margin-bottom: 24px;">
-            <h1 class="page-title">Security & Audit Logs</h1>
-            <p style="color: var(--text-muted); font-size: 0.88rem;">Cryptographic audit trail of all administrative and terminal transactions.</p>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <h1 class="page-title">Security & Audit Logs</h1>
+              <p style="color: var(--text-muted); font-size: 0.88rem;">Cryptographic audit trail of all administrative and terminal transactions.</p>
+            </div>
+            <button id="btn-export-audit-pdf" class="btn btn-secondary" onclick="generateAuditReportPDF()">📄 Export Audit Trail (PDF)</button>
           </div>
 
           <div class="card">
@@ -976,6 +980,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20261017_05"></script>
+  <script src="html2pdf.bundle.min.js"></script>
+  <script src="app.js?v=20261017_06"></script>
 </body>
 </html>
