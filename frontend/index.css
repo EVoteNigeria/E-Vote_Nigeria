@@ -660,6 +660,7 @@ body.theme-light .theme-icon-moon {
   border-radius: var(--radius-full);
   font-size: 0.75rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .badge-success {

@@ -416,7 +416,6 @@ async function loadVoters(searchQuery = '') {
       <td>
         <div style="display: flex; gap: 6px;">
           <button onclick="triggerEnrollFor('${v.id}')" class="btn btn-secondary btn-sm" title="Queue hardware fingerprint scan on ESP32">&#9757; Enroll</button>
-          <button onclick="openMapSlotModal('${v.id}', '${v.voter_id}', '${safeName}')" class="btn btn-secondary btn-sm" title="Directly link to existing AS608 hardware slot without re-scanning">&#128279; Link Slot</button>
           <button onclick="deleteVoter('${v.id}', '${v.voter_id}', '${safeName}')" class="btn btn-danger btn-sm" title="Permanently delete voter record">&#128465; Delete</button>
         </div>
       </td>
