@@ -863,65 +863,53 @@ if (btnClearCache) {
 // OFFICIAL INEC / E-VOTE PDF REPORT & EXPORT GENERATORS
 // ========================================================
 
-function numberToWords(num) {
-  if (num === 0) return 'Zero';
-  if (!num || isNaN(num)) return 'Zero';
-  num = Math.floor(Math.abs(num));
-  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  function convert(n) {
-    if (n < 20) return ones[n];
-    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? '-' + ones[n % 10] : '');
-    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + convert(n % 100) : '');
-    if (n < 1000000) return convert(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 !== 0 ? ' ' + convert(n % 1000) : '');
-    return convert(Math.floor(n / 1000000)) + ' Million' + (n % 1000000 !== 0 ? ' ' + convert(n % 1000000) : '');
+let currentReportHtml = '';
+let currentReportTitle = '';
+let currentReportFilename = '';
+
+function printReportWindow(htmlContent, title) {
+  const printWin = window.open('', '_blank');
+  if (!printWin) {
+    alert('Please allow pop-ups for this website to print/save the document.');
+    return;
   }
-  return convert(num);
+  printWin.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${title}</title>
+      <style>
+        @page { size: A4 portrait; margin: 10mm; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #ffffff !important; color: #111827 !important; margin: 0; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #d1d5db; padding: 6px 8px; font-size: 11px; }
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      </style>
+    </head>
+    <body>
+      ${htmlContent}
+      <script>
+        window.onload = function() {
+          window.print();
+        };
+      <\/script>
+    </body>
+    </html>
+  `);
+  printWin.document.close();
 }
 
-function formatReportDate(d = new Date()) {
-  try {
-    return d.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      timeZone: 'Africa/Lagos'
-    }) + ' WAT';
-  } catch (e) {
-    return d.toUTCString();
-  }
-}
-
-function generateReportHash(prefix = 'INEC-EVOTE') {
-  const chars = '0123456789ABCDEF';
-  let hash = '';
-  for (let i = 0; i < 32; i++) {
-    hash += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return `${prefix}-${hash.slice(0, 8)}-${hash.slice(8, 16)}-${hash.slice(16, 24)}-${hash.slice(24, 32)}`;
-}
-
-async function exportHtmlToPDF(contentHtml, filename) {
-  // Sandbox container styled specifically for crisp A4 paper rendering
-  const container = document.createElement('div');
-  container.id = 'pdf-export-sandbox';
-  container.style.position = 'fixed';
-  container.style.left = '-9999px';
-  container.style.top = '0';
-  container.style.width = '794px'; // 210mm @ 96 DPI
-  container.style.background = '#ffffff';
-  container.style.color = '#111827';
-  container.style.padding = '32px 36px';
-  container.style.boxSizing = 'border-box';
-  container.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-  container.innerHTML = contentHtml;
-  document.body.appendChild(container);
+async function triggerDirectDownload(element, filename) {
+  const statusEl = document.getElementById('report-preview-status');
+  const dlBtn = document.getElementById('btn-modal-download-pdf');
+  if (statusEl) statusEl.textContent = 'Rendering certified PDF document...';
+  if (dlBtn) { dlBtn.disabled = true; dlBtn.textContent = 'Downloading...'; }
 
   try {
-    if (typeof html2pdf !== 'undefined') {
+    if (typeof html2pdf !== 'undefined' && element) {
       const opt = {
         margin: [10, 10, 12, 10], // mm
         filename: filename,
@@ -930,53 +918,49 @@ async function exportHtmlToPDF(contentHtml, filename) {
           scale: 2,
           useCORS: true,
           logging: false,
-          backgroundColor: '#ffffff'
+          backgroundColor: '#ffffff',
+          scrollX: 0,
+          scrollY: 0
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
-      await html2pdf().set(opt).from(container).save();
-      return true;
+      await html2pdf().from(element).set(opt).save();
+      if (statusEl) statusEl.innerHTML = '<span style="color: #10b981; font-weight: 600;">&#10004; PDF downloaded successfully!</span>';
     } else {
-      // High-fidelity print window fallback
-      const printWin = window.open('', '_blank');
-      if (!printWin) {
-        alert('Please allow pop-ups for this site so the report PDF can be generated.');
-        return false;
-      }
-      printWin.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>${filename}</title>
-          <meta charset="utf-8">
-          <style>
-            @page { size: A4 portrait; margin: 10mm; }
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #ffffff !important; color: #111827 !important; margin: 0; padding: 24px; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #d1d5db; padding: 6px 8px; font-size: 11px; }
-            @media print {
-              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            }
-          </style>
-        </head>
-        <body>
-          ${contentHtml}
-          <script>
-            window.onload = function() {
-              window.print();
-            };
-          <\/script>
-        </body>
-        </html>
-      `);
-      printWin.document.close();
-      return true;
+      printReportWindow(currentReportHtml, currentReportTitle);
     }
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    if (statusEl) statusEl.textContent = 'Direct download failed. Please use the Print button to save as PDF.';
   } finally {
-    if (container && container.parentNode) {
-      container.parentNode.removeChild(container);
-    }
+    if (dlBtn) { dlBtn.disabled = false; dlBtn.innerHTML = '&#128190; Download PDF'; }
   }
+}
+
+async function showReportPreviewAndExport(contentHtml, title, filename) {
+  currentReportHtml = contentHtml;
+  currentReportTitle = title;
+  currentReportFilename = filename;
+
+  const modal = document.getElementById('modal-report-preview');
+  const titleEl = document.getElementById('report-preview-title');
+  const statusEl = document.getElementById('report-preview-status');
+  const contentEl = document.getElementById('report-preview-content');
+
+  if (titleEl) titleEl.textContent = title;
+  if (statusEl) statusEl.textContent = 'Preparing certified document...';
+  if (contentEl) contentEl.innerHTML = contentHtml;
+
+  if (modal) {
+    modal.classList.add('active');
+  }
+
+  // Allow the DOM to render the visible content in the modal before capturing
+  setTimeout(async () => {
+    if (contentEl) {
+      await triggerDirectDownload(contentEl, filename);
+    }
+  }, 150);
 }
 
 // 1. VOTER REGISTER REPORT
@@ -1119,7 +1103,7 @@ async function generateVotersReportPDF() {
       </div>
     `;
 
-    await exportHtmlToPDF(htmlContent, `Voter_Register_Report_${Date.now()}.pdf`);
+    await showReportPreviewAndExport(htmlContent, 'INEC Certified Voter Register', `Voter_Register_Report_${Date.now()}.pdf`);
   } catch (err) {
     console.error('Error generating Voter Register PDF:', err);
     alert('Failed to generate Voter Register PDF: ' + err.message);
@@ -1353,7 +1337,7 @@ async function generateResultsCertificatePDF() {
       </div>
     `;
 
-    await exportHtmlToPDF(htmlContent, `Election_Results_Certificate_Form_EC8A_${Date.now()}.pdf`);
+    await showReportPreviewAndExport(htmlContent, 'INEC Form EC 8A - Statement of Results', `Election_Results_Certificate_Form_EC8A_${Date.now()}.pdf`);
   } catch (err) {
     console.error('Error generating Results Certificate PDF:', err);
     alert('Failed to generate Results Certificate: ' + err.message);
@@ -1501,7 +1485,7 @@ async function generateAuditReportPDF() {
       </div>
     `;
 
-    await exportHtmlToPDF(htmlContent, `Audit_Trail_Report_${Date.now()}.pdf`);
+    await showReportPreviewAndExport(htmlContent, 'INEC Cryptographic Audit Trail Report', `Audit_Trail_Report_${Date.now()}.pdf`);
   } catch (err) {
     console.error('Error generating Audit Report PDF:', err);
     alert('Failed to generate Audit Report: ' + err.message);
@@ -1519,7 +1503,7 @@ window.generateVotersReportPDF = generateVotersReportPDF;
 window.generateResultsCertificatePDF = generateResultsCertificatePDF;
 window.generateAuditReportPDF = generateAuditReportPDF;
 
-// Attach event listeners for all report export buttons
+// Attach event listeners for all report export buttons and modal
 document.addEventListener('DOMContentLoaded', () => {
   const btnExportVoters = document.getElementById('btn-export-voters-pdf');
   if (btnExportVoters) btnExportVoters.addEventListener('click', generateVotersReportPDF);
@@ -1538,5 +1522,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnRepAudit = document.getElementById('btn-report-audit');
   if (btnRepAudit) btnRepAudit.addEventListener('click', generateAuditReportPDF);
+
+  const btnCloseModal = document.getElementById('btn-modal-close-preview');
+  if (btnCloseModal) {
+    btnCloseModal.addEventListener('click', () => {
+      const modal = document.getElementById('modal-report-preview');
+      if (modal) modal.classList.remove('active');
+    });
+  }
+
+  const btnModalPrint = document.getElementById('btn-modal-print-pdf');
+  if (btnModalPrint) {
+    btnModalPrint.addEventListener('click', () => {
+      printReportWindow(currentReportHtml, currentReportTitle);
+    });
+  }
+
+  const btnModalDownload = document.getElementById('btn-modal-download-pdf');
+  if (btnModalDownload) {
+    btnModalDownload.addEventListener('click', () => {
+      const contentEl = document.getElementById('report-preview-content');
+      if (contentEl) triggerDirectDownload(contentEl, currentReportFilename);
+    });
+  }
 });
 
