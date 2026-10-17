@@ -5,33 +5,165 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Biometric E-Voting System | National Admin Dashboard</title>
   <meta name="description" content="Secure Web-Based Admin Dashboard for ESP32 and AS608 Biometric Electronic Voting System.">
+  
+  <style>
+    /* CRITICAL INLINE STYLES FOR THEME TOGGLE (PREVENTS FLASH & UNSTYLED OVERSIZED ELEMENTS) */
+    .theme-toggle-btn {
+      display: inline-flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 8px !important;
+      background: var(--bg-surface-elevated, #182030) !important;
+      border: 1px solid var(--border-subtle, rgba(255,255,255,0.12)) !important;
+      color: var(--text-main, #f3f4f6) !important;
+      padding: 4px 10px 4px 6px !important;
+      border-radius: 9999px !important;
+      cursor: pointer !important;
+      font-size: 0.8rem !important;
+      font-weight: 600 !important;
+      font-family: inherit !important;
+      user-select: none !important;
+      height: 32px !important;
+      max-height: 32px !important;
+      box-sizing: border-box !important;
+      line-height: 1 !important;
+      white-space: nowrap !important;
+      text-decoration: none !important;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+    }
+    .theme-toggle-switch {
+      width: 36px !important;
+      height: 20px !important;
+      background: #334155 !important;
+      border-radius: 20px !important;
+      position: relative !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      padding: 2px !important;
+      box-sizing: border-box !important;
+      flex-shrink: 0 !important;
+      transition: background 0.2s ease !important;
+    }
+    .theme-toggle-thumb {
+      width: 16px !important;
+      height: 16px !important;
+      background: #ffffff !important;
+      border-radius: 50% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+      overflow: hidden !important;
+    }
+    .theme-toggle-thumb svg {
+      width: 11px !important;
+      height: 11px !important;
+      max-width: 11px !important;
+      max-height: 11px !important;
+      flex-shrink: 0 !important;
+      display: block !important;
+    }
+    .theme-icon-sun { display: none !important; color: #d97706 !important; }
+    .theme-icon-moon { display: block !important; color: #1e293b !important; }
+    
+    html.theme-light .theme-toggle-switch,
+    body.theme-light .theme-toggle-switch {
+      background: #2563eb !important;
+    }
+    html.theme-light .theme-toggle-thumb,
+    body.theme-light .theme-toggle-thumb {
+      transform: translateX(16px) !important;
+      background: #ffffff !important;
+    }
+    html.theme-light .theme-icon-sun,
+    body.theme-light .theme-icon-sun {
+      display: block !important;
+    }
+    html.theme-light .theme-icon-moon,
+    body.theme-light .theme-icon-moon {
+      display: none !important;
+    }
+    html.theme-light .theme-toggle-btn,
+    body.theme-light .theme-toggle-btn {
+      background: #ffffff !important;
+      border-color: #cbd5e1 !important;
+      color: #1e293b !important;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+    }
+  </style>
+
   <script>
     (function() {
-      try {
-        const saved = localStorage.getItem('evote_theme');
-        const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
-        if (saved === 'light' || (!saved && prefersLight)) {
-          document.documentElement.classList.add('theme-light');
-        } else {
-          document.documentElement.classList.add('theme-dark');
+      window.getPreferredTheme = function() {
+        try {
+          const saved = localStorage.getItem('evote_theme');
+          if (saved) return saved;
+          return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        } catch (e) {
+          return 'dark';
         }
-      } catch (e) {}
+      };
+
+      window.applyTheme = function(theme) {
+        const isLight = theme === 'light';
+        const docEl = document.documentElement;
+        const bodyEl = document.body;
+        if (isLight) {
+          docEl.classList.add('theme-light');
+          docEl.classList.remove('theme-dark');
+          if (bodyEl) {
+            bodyEl.classList.add('theme-light');
+            bodyEl.classList.remove('theme-dark');
+          }
+        } else {
+          docEl.classList.remove('theme-light');
+          docEl.classList.add('theme-dark');
+          if (bodyEl) {
+            bodyEl.classList.remove('theme-light');
+            bodyEl.classList.add('theme-dark');
+          }
+        }
+        try {
+          localStorage.setItem('evote_theme', theme);
+        } catch (e) {}
+
+        document.querySelectorAll('.theme-toggle-text').forEach(function(el) {
+          el.textContent = isLight ? 'Light Mode' : 'Dark Mode';
+        });
+      };
+
+      window.toggleTheme = function() {
+        const currentIsLight = document.documentElement.classList.contains('theme-light') || 
+                               (document.body && document.body.classList.contains('theme-light'));
+        window.applyTheme(currentIsLight ? 'dark' : 'light');
+      };
+
+      // Set initial class on html before first paint
+      const initial = window.getPreferredTheme();
+      if (initial === 'light') {
+        document.documentElement.classList.add('theme-light');
+      } else {
+        document.documentElement.classList.add('theme-dark');
+      }
     })();
   </script>
-  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="index.css?v=20261017_03">
 </head>
 <body>
 
   <!-- LOGIN SCREEN -->
   <div id="login-view">
-    <div style="position: absolute; top: 24px; right: 28px; z-index: 20;">
-      <button class="theme-toggle-btn" type="button" aria-label="Toggle light/dark theme" title="Toggle Light / Dark Mode">
-        <div class="theme-toggle-switch">
-          <div class="theme-toggle-thumb">
-            <svg class="theme-icon-sun" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-            <svg class="theme-icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          </div>
-        </div>
+    <div style="position: absolute; top: 20px; right: 24px; z-index: 20;">
+      <button class="theme-toggle-btn" type="button" onclick="toggleTheme()" aria-label="Toggle light/dark theme" title="Toggle Light / Dark Mode">
+        <span class="theme-toggle-switch">
+          <span class="theme-toggle-thumb">
+            <svg class="theme-icon-sun" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <svg class="theme-icon-moon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          </span>
+        </span>
         <span class="theme-toggle-text">Dark Mode</span>
       </button>
     </div>
@@ -153,13 +285,13 @@
           </div>
         </div>
         <div class="topbar-right">
-          <button class="theme-toggle-btn" type="button" aria-label="Toggle light/dark theme" title="Toggle Light / Dark Mode">
-            <div class="theme-toggle-switch">
-              <div class="theme-toggle-thumb">
-                <svg class="theme-icon-sun" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-                <svg class="theme-icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-              </div>
-            </div>
+          <button id="theme-toggle" class="theme-toggle-btn" type="button" onclick="toggleTheme()" aria-label="Toggle light/dark theme" title="Toggle Light / Dark Mode">
+            <span class="theme-toggle-switch">
+              <span class="theme-toggle-thumb">
+                <svg class="theme-icon-sun" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                <svg class="theme-icon-moon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+              </span>
+            </span>
             <span class="theme-toggle-text">Dark Mode</span>
           </button>
           <div id="top-db-status" class="badge badge-info" style="font-size: 0.75rem; padding: 4px 10px; cursor: pointer;" title="Click for Database Persistence Information">DB: Checking...</div>
@@ -844,6 +976,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20261017_03"></script>
 </body>
 </html>

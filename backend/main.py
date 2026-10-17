@@ -54,6 +54,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_cache_control_header(request, call_next):
+    response = await call_next(request)
+    path = request.url.path.lower()
+    if path.endswith((".html", ".css", ".js")) or path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 # ----------------------------------------------------
 # Pydantic Request & Response Schemas
 # ----------------------------------------------------
