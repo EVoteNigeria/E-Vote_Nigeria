@@ -863,6 +863,47 @@ if (btnClearCache) {
 // OFFICIAL INEC / E-VOTE PDF REPORT & EXPORT GENERATORS
 // ========================================================
 
+function numberToWords(num) {
+  if (num === 0) return 'Zero';
+  if (!num || isNaN(num)) return 'Zero';
+  num = Math.floor(Math.abs(num));
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  function convert(n) {
+    if (n < 20) return ones[n];
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? '-' + ones[n % 10] : '');
+    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + convert(n % 100) : '');
+    if (n < 1000000) return convert(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 !== 0 ? ' ' + convert(n % 1000) : '');
+    return convert(Math.floor(n / 1000000)) + ' Million' + (n % 1000000 !== 0 ? ' ' + convert(n % 1000000) : '');
+  }
+  return convert(num);
+}
+
+function formatReportDate(d = new Date()) {
+  try {
+    return d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZone: 'Africa/Lagos'
+    }) + ' WAT';
+  } catch (e) {
+    return d.toUTCString();
+  }
+}
+
+function generateReportHash(prefix = 'INEC-EVOTE') {
+  const chars = '0123456789ABCDEF';
+  let hash = '';
+  for (let i = 0; i < 32; i++) {
+    hash += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `${prefix}-${hash.slice(0, 8)}-${hash.slice(8, 16)}-${hash.slice(16, 24)}-${hash.slice(24, 32)}`;
+}
+
 let currentReportHtml = '';
 let currentReportTitle = '';
 let currentReportFilename = '';
