@@ -5,17 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Biometric E-Voting System | National Admin Dashboard</title>
   <meta name="description" content="Secure Web-Based Admin Dashboard for ESP32 and AS608 Biometric Electronic Voting System.">
+  <script>
+    (function() {
+      try {
+        const saved = localStorage.getItem('evote_theme');
+        const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        if (saved === 'light' || (!saved && prefersLight)) {
+          document.documentElement.classList.add('theme-light');
+        } else {
+          document.documentElement.classList.add('theme-dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <link rel="stylesheet" href="index.css">
 </head>
 <body>
 
   <!-- LOGIN SCREEN -->
   <div id="login-view">
+    <div style="position: absolute; top: 24px; right: 28px; z-index: 20;">
+      <button class="theme-toggle-btn" type="button" aria-label="Toggle light/dark theme" title="Toggle Light / Dark Mode">
+        <div class="theme-toggle-switch">
+          <div class="theme-toggle-thumb">
+            <svg class="theme-icon-sun" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <svg class="theme-icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          </div>
+        </div>
+        <span class="theme-toggle-text">Dark Mode</span>
+      </button>
+    </div>
     <div class="login-card">
       <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 24px;">
         <div class="brand-logo-icon">V</div>
         <div>
-          <h2 style="font-size: 1.25rem; font-weight: 800; color: #fff;">E-VOTE NIGERIA</h2>
+          <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--text-heading);">E-VOTE NIGERIA</h2>
           <div style="font-size: 0.76rem; color: var(--accent-cyan); font-weight: 600;">BIOMETRIC TERMINAL CONTROL</div>
         </div>
       </div>
@@ -129,6 +153,15 @@
           </div>
         </div>
         <div class="topbar-right">
+          <button class="theme-toggle-btn" type="button" aria-label="Toggle light/dark theme" title="Toggle Light / Dark Mode">
+            <div class="theme-toggle-switch">
+              <div class="theme-toggle-thumb">
+                <svg class="theme-icon-sun" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                <svg class="theme-icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+              </div>
+            </div>
+            <span class="theme-toggle-text">Dark Mode</span>
+          </button>
           <div id="top-db-status" class="badge badge-info" style="font-size: 0.75rem; padding: 4px 10px; cursor: pointer;" title="Click for Database Persistence Information">DB: Checking...</div>
           <div class="time-display" id="lagos-clock">LAGOS: --:--:--</div>
           <button id="btn-quick-refresh" class="btn btn-secondary btn-sm">Refresh State</button>
@@ -155,7 +188,7 @@
         <!-- PAGE 1: OVERVIEW DASHBOARD -->
         <section id="page-overview" class="page-view">
           <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Election Overview & Status</h1>
+            <h1 class="page-title">Election Overview & Status</h1>
             <p style="color: var(--text-muted); font-size: 0.88rem;">Live operational metrics, voter turnout, and terminal telemetry.</p>
           </div>
 
@@ -207,11 +240,11 @@
               <div style="display: flex; gap: 32px; margin-top: 24px;">
                 <div>
                   <div style="font-size: 0.78rem; color: var(--text-muted);">ACCEPTED BALLOTS</div>
-                  <div style="font-size: 1.25rem; font-weight: 700; color: #fff;" id="overview-ballots-count">0</div>
+                  <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-heading);" id="overview-ballots-count">0</div>
                 </div>
                 <div>
                   <div style="font-size: 0.78rem; color: var(--text-muted);">PARTICIPATED VOTERS</div>
-                  <div style="font-size: 1.25rem; font-weight: 700; color: #fff;" id="overview-participants-count">0</div>
+                  <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-heading);" id="overview-participants-count">0</div>
                 </div>
                 <div>
                   <div style="font-size: 0.78rem; color: var(--text-muted);">RECONCILIATION</div>
@@ -227,7 +260,7 @@
               <div style="display: flex; flex-direction: column; gap: 14px; font-size: 0.86rem;">
                 <div>
                   <div style="color: var(--text-muted); font-size: 0.76rem;">ELECTION CODE</div>
-                  <div id="overview-el-code" style="font-weight: 600; font-family: var(--font-mono); color: #fff;">-</div>
+                  <div id="overview-el-code" style="font-weight: 600; font-family: var(--font-mono); color: var(--text-heading);">-</div>
                 </div>
                 <div>
                   <div style="color: var(--text-muted); font-size: 0.76rem;">STATUS</div>
@@ -235,11 +268,11 @@
                 </div>
                 <div>
                   <div style="color: var(--text-muted); font-size: 0.76rem;">SCHEDULED WINDOW</div>
-                  <div id="overview-el-dates" style="color: #cbd5e1;">-</div>
+                  <div id="overview-el-dates" style="color: var(--text-main); font-weight: 500;">-</div>
                 </div>
                 <div>
                   <div style="color: var(--text-muted); font-size: 0.76rem;">BALLOT PRIVACY ARCHITECTURE</div>
-                  <div style="color: #34d399; font-weight: 500;">Zero-linkage anonymous storage</div>
+                  <div style="color: var(--accent-success); font-weight: 500;">Zero-linkage anonymous storage</div>
                 </div>
               </div>
             </div>
@@ -250,7 +283,7 @@
         <section id="page-elections" class="page-view" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
             <div>
-              <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Election Management</h1>
+              <h1 class="page-title">Election Management</h1>
               <p style="color: var(--text-muted); font-size: 0.88rem;">Configure voting schedules, lifecycles, and result permissions.</p>
             </div>
             <button id="btn-create-election" class="btn btn-primary">+ Create New Election</button>
@@ -282,7 +315,7 @@
         <section id="page-parties" class="page-view" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
             <div>
-              <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Political Parties & Terminal LCD Simulator</h1>
+              <h1 class="page-title">Political Parties & Terminal LCD Simulator</h1>
               <p style="color: var(--text-muted); font-size: 0.88rem;">Manage ballot options and verify 16x4 LCD 8-character column constraints.</p>
             </div>
             <button id="btn-add-party" class="btn btn-primary">+ Add Political Party</button>
@@ -346,7 +379,7 @@
         <section id="page-voters" class="page-view" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
             <div>
-              <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Voter Registry</h1>
+              <h1 class="page-title">Voter Registry</h1>
               <p style="color: var(--text-muted); font-size: 0.88rem;">Manage eligible voters and biometric enrollment records.</p>
             </div>
             <div style="display: flex; gap: 10px;">
@@ -387,7 +420,7 @@
         <!-- PAGE 5: FINGERPRINT ENROLLMENT -->
         <section id="page-enrollment" class="page-view" style="display: none;">
           <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">AS608 Fingerprint Enrollment Control</h1>
+            <h1 class="page-title">AS608 Fingerprint Enrollment Control</h1>
             <p style="color: var(--text-muted); font-size: 0.88rem;">Trigger hardware enrollment on an online ESP32 voting terminal.</p>
           </div>
 
@@ -438,7 +471,7 @@
         <section id="page-terminals" class="page-view" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
             <div>
-              <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">ESP32 Voting Terminals</h1>
+              <h1 class="page-title">ESP32 Voting Terminals</h1>
               <p style="color: var(--text-muted); font-size: 0.88rem;">Monitor hardware connectivity, sensor memory, and telemetry heartbeats.</p>
             </div>
             <button id="btn-register-terminal" class="btn btn-primary">+ Register New Terminal</button>
@@ -469,7 +502,7 @@
         <!-- PAGE 7: TURNOUT MONITORING -->
         <section id="page-turnout" class="page-view" style="display: none;">
           <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Voter Turnout & Participation</h1>
+            <h1 class="page-title">Voter Turnout & Participation</h1>
             <p style="color: var(--text-muted); font-size: 0.88rem;">Statistical participation breakdown with zero-knowledge ballot secrecy.</p>
           </div>
 
@@ -493,7 +526,7 @@
         <section id="page-results" class="page-view" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
             <div>
-              <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Certified Election Results</h1>
+              <h1 class="page-title">Certified Election Results</h1>
               <p style="color: var(--text-muted); font-size: 0.88rem;">Aggregated party counts and ballot certification.</p>
             </div>
             <button id="btn-export-results" class="btn btn-secondary">&#128438; Print / Export Results</button>
@@ -527,7 +560,7 @@
         <!-- PAGE 9: REPORTS & EXPORTS -->
         <section id="page-reports" class="page-view" style="display: none;">
           <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Reports & Official Exports</h1>
+            <h1 class="page-title">Reports & Official Exports</h1>
             <p style="color: var(--text-muted); font-size: 0.88rem;">Download audit certified logs, voter registries, and terminal telemetry.</p>
           </div>
 
@@ -553,7 +586,7 @@
         <!-- PAGE 10: AUDIT LOGS -->
         <section id="page-audit" class="page-view" style="display: none;">
           <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Security & Audit Logs</h1>
+            <h1 class="page-title">Security & Audit Logs</h1>
             <p style="color: var(--text-muted); font-size: 0.88rem;">Cryptographic audit trail of all administrative and terminal transactions.</p>
           </div>
 
@@ -581,7 +614,7 @@
         <!-- PAGE 11: ADMINISTRATOR MANAGEMENT -->
         <section id="page-admins" class="page-view" style="display: none;">
           <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">Administrator Accounts</h1>
+            <h1 class="page-title">Administrator Accounts</h1>
             <p style="color: var(--text-muted); font-size: 0.88rem;">Role-based access controls and credential policies.</p>
           </div>
 
@@ -614,7 +647,7 @@
         <!-- PAGE 12: SYSTEM SETTINGS -->
         <section id="page-settings" class="page-view" style="display: none;">
           <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 1.6rem; font-weight: 800; color: #fff;">System Settings & Data Persistence</h1>
+            <h1 class="page-title">System Settings & Data Persistence</h1>
             <p style="color: var(--text-muted); font-size: 0.88rem;">Database persistence, backup/restore controls, hardware parameters, and election policies.</p>
           </div>
 
@@ -628,7 +661,7 @@
               </div>
               <div style="margin-bottom: 16px;">
                 <div style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 6px;">Active Database Engine:</div>
-                <div id="settings-db-engine" style="font-weight: 700; font-size: 1.05rem; color: #fff;">--</div>
+                <div id="settings-db-engine" style="font-weight: 700; font-size: 1.05rem; color: var(--text-heading);">--</div>
               </div>
               <div style="margin-bottom: 16px;">
                 <div style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 6px;">Persistence Mode:</div>

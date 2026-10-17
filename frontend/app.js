@@ -1,6 +1,73 @@
 // Biometric E-Voting System Admin Dashboard Logic
 // Connects securely to FastAPI backend endpoints
 
+// ========================================================
+// THEME MANAGEMENT (DARK & LIGHT MODES)
+// ========================================================
+function getPreferredTheme() {
+  const saved = localStorage.getItem('evote_theme');
+  if (saved) return saved;
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+}
+
+function applyTheme(theme) {
+  const isLight = theme === 'light';
+  if (isLight) {
+    document.documentElement.classList.add('theme-light');
+    document.documentElement.classList.remove('theme-dark');
+    document.body.classList.add('theme-light');
+    document.body.classList.remove('theme-dark');
+  } else {
+    document.documentElement.classList.remove('theme-light');
+    document.documentElement.classList.add('theme-dark');
+    document.body.classList.remove('theme-light');
+    document.body.classList.add('theme-dark');
+  }
+  try {
+    localStorage.setItem('evote_theme', theme);
+  } catch (e) {}
+
+  document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+    btn.setAttribute('aria-checked', isLight ? 'true' : 'false');
+    const textSpan = btn.querySelector('.theme-toggle-text');
+    if (textSpan) {
+      textSpan.textContent = isLight ? 'Light Mode' : 'Dark Mode';
+    }
+  });
+}
+
+function toggleTheme() {
+  const isCurrentlyLight = document.documentElement.classList.contains('theme-light') || 
+                           document.body.classList.contains('theme-light');
+  applyTheme(isCurrentlyLight ? 'dark' : 'light');
+}
+
+function initThemeToggles() {
+  applyTheme(getPreferredTheme());
+  document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+    btn.onclick = (e) => {
+      e.preventDefault();
+      toggleTheme();
+    };
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initThemeToggles);
+} else {
+  initThemeToggles();
+}
+
+if (window.matchMedia) {
+  try {
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
+      if (!localStorage.getItem('evote_theme')) {
+        applyTheme(e.matches ? 'light' : 'dark');
+      }
+    });
+  } catch (e) {}
+}
+
 let authToken = localStorage.getItem('evote_token');
 let currentAdmin = JSON.parse(localStorage.getItem('evote_admin') || 'null');
 let activeElectionId = null;
