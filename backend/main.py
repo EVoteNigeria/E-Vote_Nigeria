@@ -37,8 +37,11 @@ from backend.security import (
 )
 
 # Initialize Database Schema & Seed Data if not present
-init_db()
-seed_data()
+try:
+    init_db()
+    seed_data()
+except Exception as e:
+    print(f"[Startup Warning] Database initialization or seeding notice: {e}")
 
 app = FastAPI(
     title="Biometric Electronic Voting System API",

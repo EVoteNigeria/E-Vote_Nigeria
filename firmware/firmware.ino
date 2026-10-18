@@ -237,7 +237,7 @@ void loop() {
       if (matchedSlot == expectedFingerprintSlot) {
         buzzer.keyClick();
         display.clear();
-        display.showError("MATCH CONFIRMED!", "Loading Ballot...");
+        display.showError("MATCH CONFIRMED!", "Loading Ballot");
 
         // Fetch Ballot Options for election
         if (xSemaphoreTake(networkMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
@@ -251,19 +251,19 @@ void loop() {
           renderBallotScreen();
         } else {
           buzzer.errorTone();
-          display.showError("No Active Parties", "Contact Admin");
+          display.showError("No Active Party", "Contact Admin");
           delay(3000);
           resetToWelcome();
         }
       } else if (matchedSlot > 0 && matchedSlot != expectedFingerprintSlot) {
         buzzer.errorTone();
-        display.showError("MISMATCH!", "Wrong Voter Scan");
+        display.showError("MISMATCH!", "Wrong Finger");
         delay(3000);
         resetToWelcome();
       } else {
         // Timeout or unrecognized scan
         buzzer.errorTone();
-        display.showError("Scan Timed Out", "Finger Not Found");
+        display.showError("Scan Timed Out", "No Match Found");
         delay(3000);
         resetToWelcome();
       }

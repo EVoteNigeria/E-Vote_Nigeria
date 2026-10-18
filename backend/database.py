@@ -225,6 +225,21 @@ def init_db():
     bool_true = "TRUE" if is_pg else "1"
     bool_false = "FALSE" if is_pg else "0"
 
+    # Fast-path: If core tables already exist, skip redundant DDL for instant startup
+    try:
+        if is_pg:
+            cursor.execute("SELECT 1 FROM information_schema.tables WHERE lower(table_name) = 'administrator_accounts' LIMIT 1;")
+            if cursor.fetchone():
+                conn.close()
+                return
+        else:
+            cursor.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='administrator_accounts';")
+            if cursor.fetchone():
+                conn.close()
+                return
+    except Exception:
+        pass
+
     if is_pg:
         # Create PostgreSQL compatibility functions for SQLite datetime expressions
         cursor.execute("""
