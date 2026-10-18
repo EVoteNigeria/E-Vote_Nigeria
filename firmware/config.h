@@ -34,8 +34,9 @@
 #define PIN_KEYPAD_C3         33
 #define PIN_KEYPAD_C4         32
 
-// Audio Feedback (Active Buzzer)
+// Audio Feedback (Active Buzzer) & Visual Status LED
 #define PIN_BUZZER            4
+#define PIN_STATUS_LED        2    // Onboard ESP32 status LED (solid = online)
 
 // 3. Operational Timing & Constraints
 #define HEARTBEAT_INTERVAL_MS 10000 // Send telemetry every 10s

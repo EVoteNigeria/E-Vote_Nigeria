@@ -325,8 +325,24 @@
           </div>
 
           <!-- Alert for integrity mismatch if detected -->
-          <div id="integrity-alert" style="display: none; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; border-radius: var(--radius-sm); padding: 14px 20px; margin-bottom: 24px; color: #fca5a5;">
-            <strong>Warning: Ballot Reconciliation Anomaly Detected!</strong> Voter participation count does not match accepted ballot count.
+          <div id="integrity-alert" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: var(--radius-sm); padding: 16px 20px; margin-bottom: 24px; color: #fca5a5;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+              <div>
+                <strong style="font-size: 0.95rem; color: #f87171;"><i class="fas fa-exclamation-triangle" style="margin-right: 6px;"></i>Warning: Ballot Reconciliation Anomaly Detected!</strong>
+                <div style="font-size: 0.85rem; margin-top: 4px; color: #fecaca; line-height: 1.4;">
+                  Voter participation (<span id="alert-part-cnt" style="font-weight: bold;">0</span>) does not match accepted ballots (<span id="alert-ballot-cnt" style="font-weight: bold;">0</span>).
+                  Occurs when registered voters who previously cast test ballots are deleted while ballots remain anonymous.
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-sm" onclick="reconcileActiveElection()" style="background: rgba(239, 68, 68, 0.35); border: 1px solid #ef4444; color: #ffffff; font-weight: 600; cursor: pointer; padding: 6px 14px; border-radius: 4px;">
+                  <i class="fas fa-tools" style="margin-right: 5px;"></i> Reconcile Ballots
+                </button>
+                <button type="button" class="btn btn-sm" onclick="resetActiveElectionVotes()" style="background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.3); color: #ffffff; font-weight: 500; cursor: pointer; padding: 6px 14px; border-radius: 4px;">
+                  <i class="fas fa-undo" style="margin-right: 5px;"></i> Reset Test Votes
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="stats-grid">

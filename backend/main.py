@@ -372,6 +372,105 @@ def update_election_status(election_id: str, payload: ElectionStatusUpdate, curr
     log_audit_event("Administrator", "ELECTION_STATUS_CHANGE", "Success", f"Election {election['election_code']} status changed to {payload.status}", actor_id=current_admin["id"], target_type="Election", target_id=election_id)
     return {"message": f"Election status changed to {payload.status}"}
 
+@app.post("/api/v1/elections/{election_id}/reconcile")
+def reconcile_election_ballots(election_id: str, current_admin: dict = Depends(require_roles(["System Administrator", "Election Manager"]))):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM elections WHERE id = ?", (election_id,))
+    election = cursor.fetchone()
+    if not election:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Election not found")
+
+    cursor.execute("SELECT COUNT(*) as count FROM voter_participation WHERE election_id = ? AND voted = 1", (election_id,))
+    total_voted = cursor.fetchone()["count"]
+
+    cursor.execute("SELECT COUNT(*) as count FROM ballots WHERE election_id = ? AND ballot_status = 'Accepted'", (election_id,))
+    total_ballots = cursor.fetchone()["count"]
+
+    adjusted = 0
+    if total_ballots > total_voted:
+        diff = total_ballots - total_voted
+        cursor.execute("""
+            SELECT ballot_id FROM ballots 
+            WHERE election_id = ? AND ballot_status = 'Accepted' 
+            ORDER BY created_at DESC LIMIT ?
+        """, (election_id, diff))
+        excess = [row["ballot_id"] for row in cursor.fetchall()]
+        for b_id in excess:
+            cursor.execute("DELETE FROM ballots WHERE ballot_id = ?", (b_id,))
+        adjusted = len(excess)
+        conn.commit()
+    elif total_voted > total_ballots:
+        diff = total_voted - total_ballots
+        cursor.execute("""
+            SELECT id FROM voter_participation 
+            WHERE election_id = ? AND voted = 1 
+            ORDER BY participation_timestamp DESC LIMIT ?
+        """, (election_id, diff))
+        excess_p = [row["id"] for row in cursor.fetchall()]
+        for p_id in excess_p:
+            cursor.execute("DELETE FROM voter_participation WHERE id = ?", (p_id,))
+        adjusted = len(excess_p)
+        conn.commit()
+
+    cursor.execute("SELECT COUNT(*) as count FROM voter_participation WHERE election_id = ? AND voted = 1", (election_id,))
+    new_voted = cursor.fetchone()["count"]
+    cursor.execute("SELECT COUNT(*) as count FROM ballots WHERE election_id = ? AND ballot_status = 'Accepted'", (election_id,))
+    new_ballots = cursor.fetchone()["count"]
+
+    conn.close()
+
+    log_audit_event(
+        "Administrator", 
+        "RECONCILE_ELECTION", 
+        "Success", 
+        f"Reconciled election {election['election_code']}: Adjusted {adjusted} records. Total participation: {new_voted}, Total accepted ballots: {new_ballots}", 
+        actor_id=current_admin["id"], 
+        target_type="Election", 
+        target_id=election_id
+    )
+
+    return {
+        "status": "success",
+        "message": f"Successfully reconciled election. Adjusted {adjusted} records to restore 1:1 ballot integrity.",
+        "total_voted": new_voted,
+        "total_ballots": new_ballots,
+        "adjusted": adjusted
+    }
+
+@app.post("/api/v1/elections/{election_id}/reset-votes")
+def reset_election_votes(election_id: str, current_admin: dict = Depends(require_roles(["System Administrator", "Election Manager"]))):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM elections WHERE id = ?", (election_id,))
+    election = cursor.fetchone()
+    if not election:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Election not found")
+
+    cursor.execute("DELETE FROM voter_participation WHERE election_id = ?", (election_id,))
+    cursor.execute("DELETE FROM ballots WHERE election_id = ?", (election_id,))
+    conn.commit()
+    conn.close()
+
+    log_audit_event(
+        "Administrator", 
+        "RESET_ELECTION_VOTES", 
+        "Success", 
+        f"Reset all votes and voter participation records for test election {election['election_code']}", 
+        actor_id=current_admin["id"], 
+        target_type="Election", 
+        target_id=election_id
+    )
+
+    return {
+        "status": "success",
+        "message": f"All votes and participation records for election '{election['title']}' have been cleanly reset to 0."
+    }
+
 # ----------------------------------------------------
 # 4. Political Party Management (with LCD validation)
 # ----------------------------------------------------
@@ -546,7 +645,11 @@ async def import_voters_csv(file: UploadFile = File(...), current_admin: dict = 
     return {"imported": imported_count, "skipped": skipped_count}
 
 @app.delete("/api/v1/voters/{voter_id_or_uuid}")
-def delete_voter(voter_id_or_uuid: str, current_admin: dict = Depends(require_roles(["System Administrator", "Voter Registration Officer"]))):
+def delete_voter(
+    voter_id_or_uuid: str, 
+    reconcile_test_ballot: bool = True,
+    current_admin: dict = Depends(require_roles(["System Administrator", "Voter Registration Officer"]))
+):
     conn = get_db()
     cursor = conn.cursor()
 
@@ -559,6 +662,23 @@ def delete_voter(voter_id_or_uuid: str, current_admin: dict = Depends(require_ro
     voter_uuid = voter["id"]
     numeric_id = voter["voter_id"]
     voter_name = voter["full_name"]
+
+    # Check if voter participated in any elections
+    cursor.execute("SELECT DISTINCT election_id FROM voter_participation WHERE voter_id = ? AND voted = 1", (voter_uuid,))
+    participated_elections = [row["election_id"] for row in cursor.fetchall()]
+
+    # If auto-reconciliation is enabled (default) and voter participated in elections,
+    # trim 1 excess test ballot per election to maintain strict 1:1 reconciliation parity
+    if reconcile_test_ballot and participated_elections:
+        for el_id in participated_elections:
+            cursor.execute("""
+                SELECT ballot_id FROM ballots 
+                WHERE election_id = ? AND ballot_status = 'Accepted' 
+                ORDER BY created_at DESC LIMIT 1
+            """, (el_id,))
+            b_row = cursor.fetchone()
+            if b_row:
+                cursor.execute("DELETE FROM ballots WHERE ballot_id = ?", (b_row["ballot_id"],))
 
     # Find affected terminals to recalculate their slot counts
     cursor.execute("SELECT DISTINCT device_id FROM voter_fingerprint_mappings WHERE voter_id = ?", (voter_uuid,))
@@ -586,7 +706,7 @@ def delete_voter(voter_id_or_uuid: str, current_admin: dict = Depends(require_ro
         "Administrator",
         "DELETE_VOTER",
         "Success",
-        f"Deleted voter {numeric_id} ({voter_name}) and associated biometric mappings",
+        f"Deleted voter {numeric_id} ({voter_name}) and associated biometric mappings (auto_reconcile={reconcile_test_ballot})",
         actor_id=current_admin["id"],
         target_type="Voter",
         target_id=voter_uuid

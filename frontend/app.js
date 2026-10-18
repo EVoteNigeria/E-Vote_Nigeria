@@ -239,6 +239,10 @@ async function loadOverview() {
     const alertEl = document.getElementById('integrity-alert');
     if (vs.integrity_mismatch) {
       alertEl.style.display = 'block';
+      const partEl = document.getElementById('alert-part-cnt');
+      const ballotEl = document.getElementById('alert-ballot-cnt');
+      if (partEl) partEl.textContent = vs.total_voted.toLocaleString();
+      if (ballotEl) ballotEl.textContent = vs.total_accepted_ballots.toLocaleString();
       document.getElementById('overview-reconciliation-badge').innerHTML = '<span class="badge badge-danger">Mismatch</span>';
     } else {
       alertEl.style.display = 'none';
@@ -251,6 +255,44 @@ async function loadOverview() {
     console.error('Error loading overview:', err);
   }
 }
+
+window.reconcileActiveElection = async function() {
+  try {
+    const overview = await apiRequest('/api/v1/overview/stats');
+    if (!overview.election || !overview.election.id) {
+      alert('No active election found to reconcile.');
+      return;
+    }
+    const elId = overview.election.id;
+    if (!confirm('Reconcile election ballots?\nThis will adjust orphaned test ballots to match the registered voter participation count.')) {
+      return;
+    }
+    const res = await apiRequest(`/api/v1/elections/${elId}/reconcile`, 'POST');
+    alert(res.message || 'Ballots reconciled successfully!');
+    await loadOverview();
+  } catch (err) {
+    alert('Reconciliation failed: ' + (err.message || err));
+  }
+};
+
+window.resetActiveElectionVotes = async function() {
+  try {
+    const overview = await apiRequest('/api/v1/overview/stats');
+    if (!overview.election || !overview.election.id) {
+      alert('No active election found.');
+      return;
+    }
+    const elId = overview.election.id;
+    if (!confirm(`Are you sure you want to RESET all cast votes for '${overview.election.title}'?\n\nThis will clear all test ballots and voter participation records back to 0 so you can conduct fresh testing.`)) {
+      return;
+    }
+    const res = await apiRequest(`/api/v1/elections/${elId}/reset-votes`, 'POST');
+    alert(res.message || 'Votes reset successfully!');
+    await loadOverview();
+  } catch (err) {
+    alert('Failed to reset votes: ' + (err.message || err));
+  }
+};
 
 // 2. Election Management
 async function loadElections() {
@@ -266,14 +308,40 @@ async function loadElections() {
       <td><span class="badge badge-${el.status === 'Open' ? 'success' : 'info'}">${el.status}</span></td>
       <td><small>${el.starts_at} &rarr; ${el.ends_at}</small></td>
       <td>${el.result_visibility}</td>
-      <td>
+      <td style="white-space: nowrap;">
         ${el.status === 'Draft' ? `<button onclick="updateElectionStatus('${el.id}', 'Open')" class="btn btn-primary btn-sm">Open Election</button>` : ''}
         ${el.status === 'Open' ? `<button onclick="updateElectionStatus('${el.id}', 'Closed')" class="btn btn-danger btn-sm">Close Election</button>` : ''}
+        <button onclick="reconcileElection('${el.id}')" class="btn btn-secondary btn-sm" style="margin-left: 4px;" title="Reconcile Ballots"><i class="fas fa-tools"></i> Reconcile</button>
+        <button onclick="resetElectionVotes('${el.id}', '${el.title.replace(/'/g, "\\'")}')" class="btn btn-secondary btn-sm" style="margin-left: 4px;" title="Reset test votes back to 0"><i class="fas fa-undo"></i> Reset</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
+
+window.reconcileElection = async function(id) {
+  if (!confirm('Reconcile this election? This adjusts orphaned test ballots to match participant counts.')) return;
+  try {
+    const res = await apiRequest(`/api/v1/elections/${id}/reconcile`, 'POST');
+    alert(res.message || 'Ballots reconciled!');
+    loadElections();
+    loadOverview();
+  } catch (err) {
+    alert('Reconciliation failed: ' + (err.message || err));
+  }
+};
+
+window.resetElectionVotes = async function(id, title) {
+  if (!confirm(`Are you sure you want to RESET all cast votes for '${title}'?\n\nThis will clear all test ballots and participation records back to 0.`)) return;
+  try {
+    const res = await apiRequest(`/api/v1/elections/${id}/reset-votes`, 'POST');
+    alert(res.message || 'Votes reset successfully!');
+    loadElections();
+    loadOverview();
+  } catch (err) {
+    alert('Failed to reset votes: ' + (err.message || err));
+  }
+};
 
 window.updateElectionStatus = async function(id, status) {
   if (!confirm(`Are you sure you want to change election status to ${status}?`)) return;
@@ -446,11 +514,11 @@ window.deleteParty = async function(id) {
 };
 
 window.deleteVoter = async function(id, voterId, voterName) {
-  if (!confirm(`Are you sure you want to permanently delete voter ${voterId} (${voterName})?\nThis will remove their registration and biometric slot mappings.`)) {
+  if (!confirm(`Are you sure you want to permanently delete voter ${voterId} (${voterName})?\nThis will remove their registration, biometric slot mappings, and auto-reconcile test ballots to keep participation counts balanced.`)) {
     return;
   }
   try {
-    await apiRequest(`/api/v1/voters/${id}`, 'DELETE');
+    await apiRequest(`/api/v1/voters/${id}?reconcile_test_ballot=true`, 'DELETE');
     try {
       const stored = JSON.parse(localStorage.getItem('evote_session_backup_voters') || '[]');
       const filtered = stored.filter(v => v.id !== id && v.voter_id !== voterId);

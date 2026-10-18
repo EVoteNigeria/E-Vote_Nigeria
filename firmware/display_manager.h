@@ -49,16 +49,94 @@ public:
     lcd.clear();
   }
 
-  void showWelcome() {
+  void showConnectingWiFi(const String &ssid, int attempt, int maxAttempts) {
     lcd.clear();
     setCursor(0, 0);
     lcd.print(pad16(" E-VOTE NIGERIA "));
     setCursor(0, 1);
-    lcd.print(pad16(" BIOMETRIC UNIT "));
+    lcd.print(pad16(" Connecting WiFi"));
+    setCursor(0, 2);
+    String s = ssid.length() > 14 ? ssid.substring(0, 14) : ssid;
+    lcd.print(pad16(" " + s));
+    setCursor(0, 3);
+    int dots = (attempt % 6) + 1;
+    String bar = " [";
+    for (int i = 0; i < dots; i++) bar += ".";
+    while (bar.length() < 10) bar += " ";
+    bar += "] ";
+    bar += String(attempt) + "/" + String(maxAttempts);
+    lcd.print(pad16(bar));
+  }
+
+  void showWiFiConnected(const String &ip, int rssi) {
+    lcd.clear();
+    setCursor(0, 0);
+    lcd.print(pad16(" WiFi CONNECTED!"));
+    setCursor(0, 1);
+    String ipStr = " IP:" + ip;
+    lcd.print(pad16(ipStr));
+    setCursor(0, 2);
+    String sigStr = " Signal: " + String(rssi) + "dBm";
+    lcd.print(pad16(sigStr));
+    setCursor(0, 3);
+    lcd.print(pad16(" Terminal Ready "));
+  }
+
+  void showWiFiFailed(const String &ssid) {
+    lcd.clear();
+    setCursor(0, 0);
+    lcd.print(pad16(" ! WiFi FAILED !"));
+    setCursor(0, 1);
+    String s = ssid.length() > 14 ? ssid.substring(0, 14) : ssid;
+    lcd.print(pad16(" " + s));
+    setCursor(0, 2);
+    lcd.print(pad16(" Check secrets.h"));
+    setCursor(0, 3);
+    lcd.print(pad16(" Starting Offline"));
+  }
+
+  void showNetworkDiagnostics(bool isOnline, const String &ip, int rssi, const String &ssid) {
+    lcd.clear();
+    setCursor(0, 0);
+    lcd.print(pad16(" NET DIAGNOSTICS"));
+    setCursor(0, 1);
+    if (isOnline) {
+      lcd.print(pad16(" Stat: ONLINE   "));
+      setCursor(0, 2);
+      lcd.print(pad16(" IP:" + ip));
+    } else {
+      lcd.print(pad16(" Stat: OFFLINE  "));
+      setCursor(0, 2);
+      String s = ssid.length() > 9 ? ssid.substring(0, 9) : ssid;
+      lcd.print(pad16(" SSID:" + s));
+    }
+    setCursor(0, 3);
+    lcd.print(pad16(" *Back   #Reconn"));
+  }
+
+  void showWelcome(bool isOnline = true) {
+    lcd.clear();
+    setCursor(0, 0);
+    lcd.print(pad16(" E-VOTE NIGERIA "));
+    setCursor(0, 1);
+    if (isOnline) {
+      lcd.print(pad16(" [ONLINE] PU-01 "));
+    } else {
+      lcd.print(pad16(" [OFFLINE] NO-NET"));
+    }
     setCursor(0, 2);
     lcd.print(pad16(" Enter Voter ID:"));
     setCursor(0, 3);
     lcd.print(pad16(" ID: [        ] "));
+  }
+
+  void updateOnlineStatusLine(bool isOnline) {
+    setCursor(0, 1);
+    if (isOnline) {
+      lcd.print(pad16(" [ONLINE] PU-01 "));
+    } else {
+      lcd.print(pad16(" [OFFLINE] NO-NET"));
+    }
   }
 
   void updateVoterIdInput(const String &idBuffer) {

@@ -49,7 +49,8 @@ enum TerminalState {
   STATE_SUBMITTING_BALLOT,
   STATE_VOTE_SUCCESS,
   STATE_ALERT_MESSAGE,
-  STATE_HARDWARE_ENROLLMENT
+  STATE_HARDWARE_ENROLLMENT,
+  STATE_NETWORK_DIAGNOSTICS
 };
 
 TerminalState currentState = STATE_WELCOME_ENTER_ID;
@@ -78,12 +79,22 @@ void NetworkWorkerTask(void *pvParameters) {
   const TickType_t xFrequency = pdMS_TO_TICKS(HEARTBEAT_INTERVAL_MS);
 
   for (;;) {
-    if (!AppNetworkManager::isOnline()) {
+    bool online = AppNetworkManager::isOnline();
+    digitalWrite(PIN_STATUS_LED, online ? HIGH : LOW);
+
+    if (!online) {
       Serial.println("[NetworkWorker] Wi-Fi offline, attempting reconnect...");
       AppNetworkManager::connectWiFi();
+      online = AppNetworkManager::isOnline();
+      digitalWrite(PIN_STATUS_LED, online ? HIGH : LOW);
     }
 
-    if (AppNetworkManager::isOnline()) {
+    // Keep the Welcome screen line updated if sitting idle
+    if (currentState == STATE_WELCOME_ENTER_ID && currentVoterId.length() == 0) {
+      display.updateOnlineStatusLine(online);
+    }
+
+    if (online) {
       if (xSemaphoreTake(networkMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
         String cmdType = "";
         String cmdPayload = "";
@@ -115,9 +126,7 @@ void NetworkWorkerTask(void *pvParameters) {
             api.reportEnrollmentResult("", voterId, targetSlot, false, "Fingerprint scan failed");
           }
           vTaskDelay(pdMS_TO_TICKS(2500));
-          currentState = STATE_WELCOME_ENTER_ID;
-          currentVoterId = "";
-          display.showWelcome();
+          resetToWelcome();
         }
         xSemaphoreGive(networkMutex);
       }
@@ -136,7 +145,7 @@ void resetToWelcome() {
   pendingConfirmKey = '\0';
   currentBallotPage = 0;
   currentState = STATE_WELCOME_ENTER_ID;
-  display.showWelcome();
+  display.showWelcome(AppNetworkManager::isOnline());
 }
 
 void setup() {
@@ -147,24 +156,28 @@ void setup() {
   buzzer.begin();
   buzzer.keyClick();
 
-  display.begin();
-  display.showWelcome();
+  pinMode(PIN_STATUS_LED, OUTPUT);
+  digitalWrite(PIN_STATUS_LED, LOW);
 
+  display.begin();
   keypad.begin();
 
-  // Initialize AS608 Optical Sensor
+  // 1. Initialize AS608 Optical Sensor
   if (!fpSensor.begin()) {
     display.showError("AS608 Sensor", "NOT DETECTED");
     buzzer.errorTone();
     delay(2000);
-    display.showWelcome();
   }
+
+  // 2. Initial Wi-Fi link with on-screen LCD progress & audio tones
+  bool wifiOk = AppNetworkManager::connectWiFi(&display, &buzzer);
+  digitalWrite(PIN_STATUS_LED, wifiOk ? HIGH : LOW);
+
+  // 3. Initialize Welcome Screen with live Online/Offline indicator
+  resetToWelcome();
 
   // Create Network Mutex
   networkMutex = xSemaphoreCreateMutex();
-
-  // Initial Wi-Fi link
-  AppNetworkManager::connectWiFi();
 
   // Launch Background Network Task on Core 0
   BaseType_t taskRes = xTaskCreatePinnedToCore(
@@ -195,6 +208,13 @@ void loop() {
     // STATE 1: Enter Numeric Voter ID
     // ----------------------------------------------------
     case STATE_WELCOME_ENTER_ID: {
+      if (key == 'D' && currentVoterId.length() == 0) {
+        // Operator Network Diagnostics
+        currentState = STATE_NETWORK_DIAGNOSTICS;
+        display.showNetworkDiagnostics(AppNetworkManager::isOnline(), AppNetworkManager::getIP(), AppNetworkManager::getRSSI(), AppNetworkManager::getSSID());
+        break;
+      }
+
       if (key >= '0' && key <= '9') {
         if (currentVoterId.length() < VOTER_ID_MAX_LEN) {
           currentVoterId += key;
@@ -207,6 +227,14 @@ void loop() {
       } else if (key == '#') {
         // Submit Voter ID
         if (currentVoterId.length() >= VOTER_ID_MIN_LEN) {
+          if (!AppNetworkManager::isOnline()) {
+            buzzer.errorTone();
+            display.showError("Network Offline", "Wait for Wi-Fi");
+            delay(2500);
+            resetToWelcome();
+            break;
+          }
+
           currentState = STATE_VERIFYING_VOTER_ID;
           display.clear();
           display.showError("Verifying Voter", "Please wait...");
@@ -341,6 +369,24 @@ void loop() {
         // Cancel and return to ballot screen
         currentState = STATE_DISPLAY_BALLOT;
         renderBallotScreen();
+      }
+      break;
+    }
+
+    // ----------------------------------------------------
+    // STATE: Network Diagnostics & Verification
+    // ----------------------------------------------------
+    case STATE_NETWORK_DIAGNOSTICS: {
+      if (key == '*') {
+        // Return to welcome screen
+        resetToWelcome();
+      } else if (key == '#') {
+        // Manual reconnect trigger with on-screen feedback
+        display.clear();
+        buzzer.keyClick();
+        bool ok = AppNetworkManager::connectWiFi(&display, &buzzer);
+        digitalWrite(PIN_STATUS_LED, ok ? HIGH : LOW);
+        display.showNetworkDiagnostics(AppNetworkManager::isOnline(), AppNetworkManager::getIP(), AppNetworkManager::getRSSI(), AppNetworkManager::getSSID());
       }
       break;
     }
