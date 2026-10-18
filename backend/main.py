@@ -402,9 +402,9 @@ def create_party(payload: BallotOptionCreate, current_admin: dict = Depends(requ
     if not el:
         conn.close()
         raise HTTPException(status_code=404, detail="Election not found")
-    if el["status"] not in ["Draft", "Scheduled"]:
+    if el["status"] in ["Closed", "Archived"]:
         conn.close()
-        raise HTTPException(status_code=400, detail="Cannot modify parties after voting has commenced or closed")
+        raise HTTPException(status_code=400, detail="Cannot modify parties after election has closed or archived")
 
     new_id = str(uuid.uuid4())
     cursor.execute("""

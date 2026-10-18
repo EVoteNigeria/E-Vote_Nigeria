@@ -59,19 +59,46 @@ def seed_data():
         parties = [
             (str(uuid.uuid4()), el_id, "All Progressives Congress", "APC", "APC", "Bola Tinubu", 1),
             (str(uuid.uuid4()), el_id, "Peoples Democratic Party", "PDP", "PDP", "Atiku Abubakar", 2),
-            (str(uuid.uuid4()), el_id, "Labour Party", "LP", "LP", "Peter Obi", 3),
-            (str(uuid.uuid4()), el_id, "New Nigeria Peoples Party", "NNPP", "NNPP", "Rabiu Kwankwaso", 4),
-            (str(uuid.uuid4()), el_id, "Social Democratic Party", "SDP", "SDP", "Adewole Adebayo", 5),
-            (str(uuid.uuid4()), el_id, "African Democratic Congress", "ADC", "ADC", "Dumebi Kachikwu", 6),
+            (str(uuid.uuid4()), el_id, "Nigeria Democratic Congress", "NDC", "NDC", "Peter Obi", 3),
+            (str(uuid.uuid4()), el_id, "Labour Party", "LP", "LP", "Chibuzo Okereke", 4),
+            (str(uuid.uuid4()), el_id, "New Nigeria Peoples Party", "NNPP", "NNPP", "Suleiman Dikwa", 5),
+            (str(uuid.uuid4()), el_id, "Allied Peoples Movement", "APM", "APM", "Chichi Ojei", 6),
+            (str(uuid.uuid4()), el_id, "Social Democratic Party", "SDP", "SDP", "Adewole Adebayo", 7),
+            (str(uuid.uuid4()), el_id, "African Democratic Congress", "ADC", "ADC", "Dumebi Kachikwu", 8),
+            (str(uuid.uuid4()), el_id, "All Progressives Grand Alliance", "APGA", "APGA", "Peter Umeadi", 9),
+            (str(uuid.uuid4()), el_id, "Peoples Redemption Party", "PRP", "PRP", "Kola Abiola", 10),
+            (str(uuid.uuid4()), el_id, "African Action Congress", "AAC", "AAC", "Omoyele Sowore", 11),
+            (str(uuid.uuid4()), el_id, "Young Progressives Party", "YPP", "YPP", "Malik Ado-Ibrahim", 12),
+            (str(uuid.uuid4()), el_id, "Zenith Labour Party", "ZLP", "ZLP", "Dan Nwanyanwu", 13),
+            (str(uuid.uuid4()), el_id, "Action Democratic Party", "ADP", "ADP", "Yabagi Sani", 14),
+            (str(uuid.uuid4()), el_id, "Action Peoples Party", "APP", "APP", "Osita Nnadi", 15),
+            (str(uuid.uuid4()), el_id, "Action Alliance", "AA", "AA", "Hamza Al-Mustapha", 16),
+            (str(uuid.uuid4()), el_id, "Accord Party", "ACCORD", "ACCORD", "Christopher Imumolen", 17),
+            (str(uuid.uuid4()), el_id, "National Rescue Movement", "NRM", "NRM", "Felix Osakwe", 18),
+            (str(uuid.uuid4()), el_id, "Boot Party", "BP", "BP", "Sunday Adenuga", 19)
         ]
-        cursor.execute("SELECT COUNT(*) as count FROM ballot_options WHERE election_id = ?", (el_id,))
-        if cursor.fetchone()["count"] == 0:
-            cursor.executemany("""
-                INSERT INTO ballot_options (
-                    id, election_id, party_name, party_acronym, lcd_label, candidate_name, display_order, is_active
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)
-            """, parties)
-            print("Sample political parties created.")
+
+        # Upsert parties: keep existing IDs to preserve cast ballots and foreign keys
+        for p in parties:
+            cursor.execute("SELECT id FROM ballot_options WHERE election_id = ? AND party_acronym = ?", (el_id, p[3]))
+            row = cursor.fetchone()
+            if not row:
+                cursor.execute("""
+                    INSERT INTO ballot_options (
+                        id, election_id, party_name, party_acronym, lcd_label, candidate_name, display_order, is_active
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)
+                """, p)
+            else:
+                cursor.execute("""
+                    UPDATE ballot_options SET
+                        party_name = ?,
+                        lcd_label = ?,
+                        candidate_name = ?,
+                        display_order = ?,
+                        is_active = TRUE
+                    WHERE id = ?
+                """, (p[2], p[4], p[5], p[6], row["id"]))
+        print(f"Sample political parties configured ({len(parties)} active parties with LCD labels).")
 
         # 5. Seed Terminal (ESP32-01)
         term_id = "term_esp32_01"

@@ -172,13 +172,41 @@ function loadPageData(page) {
 }
 
 // Modals handling
-function openModal(id) { document.getElementById(id).classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.classList.add('active');
+}
 
-document.querySelectorAll('.modal-close').forEach(btn => {
+function closeModal(id) {
+  if (id) {
+    const m = document.getElementById(id);
+    if (m) m.classList.remove('active');
+  } else {
+    document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+  }
+}
+
+// Close buttons inside modals
+document.querySelectorAll('.modal-close, .modal-close-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
   });
+});
+
+// Click outside modal card to close
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.classList.remove('active');
+    }
+  });
+});
+
+// Escape key to dismiss any active modal
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+  }
 });
 
 // 1. Overview Dashboard
@@ -352,19 +380,62 @@ const formAddParty = document.getElementById('form-add-party');
 if (formAddParty) {
   formAddParty.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const payload = {
-      election_id: activeElectionId,
-      party_name: document.getElementById('party-input-name').value,
-      party_acronym: document.getElementById('party-input-acronym').value,
-      lcd_label: document.getElementById('party-input-lcd').value.toUpperCase().trim(),
-      candidate_name: document.getElementById('party-input-candidate').value,
-      display_order: cachedParties.length + 1,
-      is_active: true
-    };
-    await apiRequest('/api/v1/parties', 'POST', payload);
-    closeModal('modal-add-party');
-    formAddParty.reset();
-    loadParties();
+    const submitBtn = formAddParty.querySelector('button[type="submit"]');
+    const origText = submitBtn ? submitBtn.textContent : 'Add Party';
+
+    try {
+      if (!activeElectionId) {
+        const stats = await apiRequest('/api/v1/overview/stats');
+        if (stats.election) activeElectionId = stats.election.id;
+      }
+      if (!activeElectionId) {
+        alert('No active election found. Please create or configure an election first.');
+        return;
+      }
+
+      const partyName = document.getElementById('party-input-name').value.trim();
+      const partyAcronym = document.getElementById('party-input-acronym').value.trim().toUpperCase();
+      const lcdLabel = document.getElementById('party-input-lcd').value.toUpperCase().trim();
+      const candidateName = document.getElementById('party-input-candidate').value.trim();
+
+      if (!partyName || !partyAcronym || !lcdLabel) {
+        alert('Please fill out all required party fields.');
+        return;
+      }
+
+      if (lcdLabel.length > 8) {
+        alert('LCD Label must be 8 characters or fewer to fit the 16x4 hardware display column.');
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Adding Party...';
+      }
+
+      const payload = {
+        election_id: activeElectionId,
+        party_name: partyName,
+        party_acronym: partyAcronym,
+        lcd_label: lcdLabel,
+        candidate_name: candidateName,
+        display_order: (cachedParties ? cachedParties.length : 0) + 1,
+        is_active: true
+      };
+
+      await apiRequest('/api/v1/parties', 'POST', payload);
+      closeModal('modal-add-party');
+      formAddParty.reset();
+      await loadParties();
+      if (typeof loadOverview === 'function') loadOverview();
+    } catch (err) {
+      alert('Failed to add political party: ' + (err.message || err));
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = origText;
+      }
+    }
   });
 }
 

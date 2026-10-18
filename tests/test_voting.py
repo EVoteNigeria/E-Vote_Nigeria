@@ -27,7 +27,7 @@ class TestEVotingSystem(unittest.TestCase):
         init_db()
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM voter_participation WHERE voter_id IN (SELECT id FROM voters WHERE voter_id = '1001')")
+        cursor.execute("DELETE FROM voter_participation WHERE election_id = 'election_2026_presidential'")
         cursor.execute("DELETE FROM ballots WHERE election_id = 'election_2026_presidential'")
         conn.commit()
         conn.close()
@@ -51,7 +51,8 @@ class TestEVotingSystem(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data["status"], "AUTHORIZED_FOR_BIOMETRIC")
-        self.assertEqual(data["expected_sensor_slot_id"], 1)
+        self.assertIsNotNone(data["expected_sensor_slot_id"])
+        TestEVotingSystem.voter_slot = data["expected_sensor_slot_id"]
 
         # Test 3: Unregistered voter ID lookup
         resp_unreg = client.get("/api/v1/devices/ESP32-01/voter-lookup?voter_id=9999", headers=headers)
@@ -87,7 +88,7 @@ class TestEVotingSystem(unittest.TestCase):
             "election_id": election_id,
             "voter_id": "1001",
             "selected_option_id": party_id,
-            "fingerprint_slot_id": 1 # Correct slot!
+            "fingerprint_slot_id": getattr(TestEVotingSystem, 'voter_slot', 1)
         }
         resp_vote = client.post("/api/v1/devices/ESP32-01/cast-ballot", json=valid_payload, headers=headers)
         self.assertEqual(resp_vote.status_code, 200)

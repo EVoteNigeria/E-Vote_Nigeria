@@ -14,7 +14,13 @@
 */
 
 #include <Arduino.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Keypad.h>
+#include <Adafruit_Fingerprint.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 #include <ArduinoJson.h>
 
 #include "config.h"
@@ -55,7 +61,7 @@ int expectedFingerprintSlot = -1;
 String activeElectionId = "";
 
 // Party Ballot Pagination
-BallotOption ballotOptions[16];
+BallotOption ballotOptions[32];
 int totalOptionsCount = 0;
 int currentBallotPage = 0;
 int selectedOptionIndex = -1;
@@ -241,7 +247,7 @@ void loop() {
 
         // Fetch Ballot Options for election
         if (xSemaphoreTake(networkMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
-          totalOptionsCount = api.fetchBallotOptions(ballotOptions, 16, activeElectionId);
+          totalOptionsCount = api.fetchBallotOptions(ballotOptions, 32, activeElectionId);
           xSemaphoreGive(networkMutex);
         }
 

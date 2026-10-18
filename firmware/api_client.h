@@ -142,7 +142,7 @@ public:
 
     if (code == 200) {
       String payload = http.getString();
-      DynamicJsonDocument doc(2048);
+      DynamicJsonDocument doc(4096);
       deserializeJson(doc, payload);
 
       electionIdOut = doc["election_id"].as<String>();

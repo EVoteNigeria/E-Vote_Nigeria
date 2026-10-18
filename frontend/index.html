@@ -894,7 +894,10 @@
           <label class="form-label">Ends At</label>
           <input type="datetime-local" id="el-input-ends" class="form-input" required>
         </div>
-        <button type="submit" class="btn btn-primary" style="width: 100%;">Create Election</button>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+          <button type="button" class="btn btn-secondary modal-close-btn" style="flex: 1;">Cancel / Go Back</button>
+          <button type="submit" class="btn btn-primary" style="flex: 1;">Create Election</button>
+        </div>
       </form>
     </div>
   </div>
@@ -915,7 +918,10 @@
           <label class="form-label">Full Name</label>
           <input type="text" id="voter-input-name" class="form-input" placeholder="e.g. Babatunde Fashola" required>
         </div>
-        <button type="submit" class="btn btn-primary" style="width: 100%;">Register Voter</button>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+          <button type="button" class="btn btn-secondary modal-close-btn" style="flex: 1;">Cancel / Go Back</button>
+          <button type="submit" class="btn btn-primary" style="flex: 1;">Register Voter</button>
+        </div>
       </form>
     </div>
   </div>
@@ -930,21 +936,28 @@
       <form id="form-add-party">
         <div class="form-group">
           <label class="form-label">Party Full Name</label>
-          <input type="text" id="party-input-name" class="form-input" placeholder="e.g. All Progressives Congress" required>
+          <input type="text" id="party-input-name" class="form-input" placeholder="e.g. Allied Peoples Movement" required>
         </div>
         <div class="form-group">
           <label class="form-label">Acronym</label>
-          <input type="text" id="party-input-acronym" class="form-input" placeholder="e.g. APC" required>
+          <input type="text" id="party-input-acronym" class="form-input" placeholder="e.g. APM" required>
         </div>
         <div class="form-group">
           <label class="form-label">LCD Label (Max 8 characters for 16x4 display)</label>
-          <input type="text" id="party-input-lcd" class="form-input" maxlength="8" placeholder="e.g. APC" required>
+          <input type="text" id="party-input-lcd" class="form-input" maxlength="8" placeholder="e.g. APM" required>
         </div>
         <div class="form-group">
           <label class="form-label">Candidate Name</label>
-          <input type="text" id="party-input-candidate" class="form-input" placeholder="e.g. Bola Tinubu">
+          <input type="text" id="party-input-candidate" class="form-input" placeholder="e.g. Chichi Ojei">
         </div>
-        <button type="submit" class="btn btn-primary" style="width: 100%;">Add Party</button>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+          <button type="button" class="btn btn-secondary modal-close-btn" style="flex: 1;">Cancel / Go Back</button>
+          <button type="submit" class="btn btn-primary" style="flex: 1;">Add Party</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Direct Slot Mapping Modal -->
   <div id="modal-map-slot" class="modal-overlay">
     <div class="modal-card">
@@ -975,7 +988,10 @@
           <label class="form-label">Finger Label</label>
           <input type="text" id="map-slot-finger" class="form-input" value="Right Index Finger">
         </div>
-        <button type="submit" class="btn btn-primary" style="width: 100%;">Save Slot Association</button>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+          <button type="button" class="btn btn-secondary modal-close-btn" style="flex: 1;">Cancel / Go Back</button>
+          <button type="submit" class="btn btn-primary" style="flex: 1;">Save Slot Association</button>
+        </div>
       </form>
     </div>
   </div>
@@ -1004,6 +1020,6 @@
   </div>
 
   <script src="html2pdf.bundle.min.js"></script>
-  <script src="app.js?v=20261017_09"></script>
+  <script src="app.js?v=20261018_01"></script>
 </body>
 </html>
